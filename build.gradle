@@ -21,6 +21,11 @@ repositories {
 dependencies {
     implementation("org.slf4j:slf4j-simple:1.7.25")
     implementation("com.github.ev3dev-lang-java:ev3dev-lang-java:2.6.2-SNAPSHOT")
+
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+    testCompileOnly 'org.projectlombok:lombok:1.18.36'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
 }
 
 compileJava.options.encoding = 'UTF-8'
