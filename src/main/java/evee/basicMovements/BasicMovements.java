@@ -2,23 +2,40 @@ package evee.basicMovements;
 
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import ev3dev.sensors.EV3Key;
-import ev3dev.sensors.ev3.EV3ColorSensor;
-import ev3dev.sensors.ev3.EV3IRSensor;
-import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
 import lejos.hardware.Key;
 import lejos.hardware.KeyListener;
 import lejos.hardware.port.MotorPort;
-import lejos.hardware.port.SensorPort;
+import lejos.robotics.subsumption.Behavior;
 import lejos.utility.Delay;
+import lombok.Getter;
 
-public class BasicMovements {
+public class BasicMovements implements Behavior {
 
     private static final int TURN_MOTOR_SPEED = 400;
     private static final int STRAIGHT_MOTOR_SPEED = 500;
 
+    @Getter
+    volatile boolean started = false;
+
     public BasicMovements() {
         this.createMotorsAndSensors();
+    }
+
+    @Override
+    public boolean takeControl() {
+        return true;
+    }
+
+    @Override
+    public void action() {
+        started = true;
+        this.forward();
+    }
+
+    @Override
+    public void suppress() {
+
     }
 
     private void createMotorsAndSensors() {
@@ -36,6 +53,7 @@ public class BasicMovements {
     private EV3MediumRegulatedMotor turn;
 
     public void forward() {
+        System.out.println("Moving forward");
         motorLeft.forward();
         motorRight.forward();
     }

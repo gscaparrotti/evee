@@ -1,22 +1,27 @@
 package evee.follower;
 
-import ev3dev.actuators.lego.motors.BaseRegulatedMotor;
 import ev3dev.sensors.ev3.EV3ColorSensor;
-import ev3dev.sensors.ev3.EV3IRSensor;
-import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.basicMovements.BasicMovements;
 import lejos.hardware.port.SensorPort;
 import lejos.robotics.Color;
+import lejos.robotics.subsumption.Behavior;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+
+import java.util.Random;
 
 import static evee.follower.Follower.Rotation.RotationKind.LEFT;
 import static evee.follower.Follower.Rotation.RotationKind.RIGHT;
 
-public class Follower {
+public class Follower implements Behavior {
+
+    final Random rand = new Random();
 
     final BasicMovements basicMovements;
     final EV3ColorSensor colorSensor;
+
+    long lastBlackFoundTimestamp = -1;
+    long lastChangeTimestamp = -1;
 
     Rotation currentRotation = new Rotation(LEFT);
 
@@ -25,17 +30,38 @@ public class Follower {
         this.colorSensor = new EV3ColorSensor(SensorPort.S3);
     }
 
+    @Override
+    public boolean takeControl() {
+        System.out.println("Evaluating Follower");
+        return basicMovements.isStarted();
+    }
+
+    @Override
+    public void action() {
+        this.updateRotation();
+    }
+
+    @Override
+    public void suppress() {
+
+    }
+
     public void updateRotation() {
         final var colorID = colorSensor.getColorID();
         logColorID(colorID);
         if (colorID == Color.BLACK) {
-            if (this.currentRotation.rotation != LEFT) {
-                basicMovements.rotateToAngle(LEFT.angle);
-            }
+            basicMovements.rotateToAngle(LEFT.angle);
             this.currentRotation = new Rotation(LEFT);
+            this.lastBlackFoundTimestamp = System.currentTimeMillis();
         } else {
-            if (this.currentRotation.rotation != RIGHT) {
+            if (System.currentTimeMillis() - lastBlackFoundTimestamp < 1000) {
                 basicMovements.rotateToAngle(RIGHT.angle);
+            } else if (System.currentTimeMillis() - lastChangeTimestamp > 1000) {
+                final var randomAngle = rand.nextInt(15);
+                final var sign = rand.nextBoolean() ? 1 : -1;
+                System.out.println("New random angle: " + randomAngle + ", sign: " + sign);
+                basicMovements.rotateToAngle(randomAngle * sign);
+                this.lastChangeTimestamp = System.currentTimeMillis();
             }
             this.currentRotation = new Rotation(RIGHT);
         }
