@@ -57,7 +57,7 @@ public class Follower implements Behavior {
             if (System.currentTimeMillis() - lastBlackFoundTimestamp < 1000) {
                 basicMovements.rotateToAngle(RIGHT.angle);
             } else if (System.currentTimeMillis() - lastChangeTimestamp > 1000) {
-                final var randomAngle = rand.nextInt(15);
+                final var randomAngle = rand.nextInt(30);
                 final var sign = rand.nextBoolean() ? 1 : -1;
                 System.out.println("New random angle: " + randomAngle + ", sign: " + sign);
                 basicMovements.rotateToAngle(randomAngle * sign);
