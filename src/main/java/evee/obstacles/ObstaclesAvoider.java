@@ -59,6 +59,9 @@ public class ObstaclesAvoider implements Behavior {
 
     private void circumvent() {
         if (!this.interrupted) {
+            basicMovements.rotateToAngle(0);
+        }
+        if (!this.interrupted) {
             basicMovements.backOff();
         }
         if (!this.interrupted) {

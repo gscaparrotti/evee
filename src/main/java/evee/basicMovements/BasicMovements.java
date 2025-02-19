@@ -10,6 +10,8 @@ import lejos.robotics.subsumption.Behavior;
 import lejos.utility.Delay;
 import lombok.Getter;
 
+import java.util.Random;
+
 public class BasicMovements implements Behavior {
 
     private static final int TURN_MOTOR_SPEED = 400;
@@ -17,6 +19,10 @@ public class BasicMovements implements Behavior {
 
     @Getter
     volatile boolean started = false;
+
+    private int currentAngle = -1;
+
+    final Random random = new Random();
 
     public BasicMovements() {
         this.createMotorsAndSensors();
@@ -45,6 +51,7 @@ public class BasicMovements implements Behavior {
         turn = new EV3MediumRegulatedMotor(MotorPort.C);
         System.out.println("Configuring motors");
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
+        turn.setSpeed(STRAIGHT_MOTOR_SPEED);
         calibrate();
     }
 
@@ -59,11 +66,15 @@ public class BasicMovements implements Behavior {
     }
 
     public void backOff() {
+        backOff(2000);
+    }
+
+    public void backOff(int time) {
         setSpeedForBothMotors(TURN_MOTOR_SPEED);
         fltBothMotors();
         motorRight.backward();
         motorLeft.backward();
-        Delay.msDelay(2000);
+        Delay.msDelay(time);
         fltBothMotors();
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
     }
@@ -72,7 +83,8 @@ public class BasicMovements implements Behavior {
         setSpeedForBothMotors(TURN_MOTOR_SPEED);
         System.out.println("Rotation started");
         System.out.println("First part of rotation");
-        final var angle = 15;
+        final var direction = random.nextInt(100) > 20;
+        final var angle = direction ? 20 : -20;
         turn.rotate(angle);
         turn.stop();
         Delay.msDelay(1000);
@@ -93,8 +105,19 @@ public class BasicMovements implements Behavior {
         motorRight.flt(true);
     }
 
+    public void stop() {
+        motorLeft.stop();
+        motorRight.stop();
+    }
+
     public void rotateToAngle(final int angle) {
-        turn.rotateTo(angle);
+        final var stackTrace = Thread.currentThread().getStackTrace();
+        final var caller = stackTrace[stackTrace.length - 2];
+        System.out.println(caller.getClassName() + " " + caller.getMethodName() + " " + angle);
+        if (currentAngle < 0 || currentAngle != angle) {
+            turn.rotateTo(angle);
+            currentAngle = angle;
+        }
     }
 
     @SuppressWarnings({"LoopConditionNotUpdatedInsideLoop", "StatementWithEmptyBody"})
