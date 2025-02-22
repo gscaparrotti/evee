@@ -157,6 +157,17 @@ task remoteProfilingRun {
     }
 }
 
+task remoteDebugRun {
+    doLast {
+        ssh.run {
+            session(remotes.ev3dev) {
+                println "brickrun -- java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /home/robot/" + "${rootProject.name}" + "-" + version + ".jar "
+                execute "brickrun -- java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar /home/robot/" + "${rootProject.name}" + "-" + version + ".jar "
+            }
+        }
+    }
+}
+
 task remoteProfilingSudoRun {
     doLast {
         ssh.run {
