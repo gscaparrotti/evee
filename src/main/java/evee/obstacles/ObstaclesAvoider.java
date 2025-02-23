@@ -1,16 +1,23 @@
 package evee.obstacles;
 
+import ev3dev.actuators.Sound;
 import ev3dev.sensors.ev3.EV3IRSensor;
 import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.basicMovements.BasicMovements;
 import lejos.hardware.port.SensorPort;
 import lejos.robotics.subsumption.Behavior;
+import org.apache.commons.collections4.queue.CircularFifoQueue;
 
 public class ObstaclesAvoider implements Behavior {
 
     final EV3IRSensor irSensor;
     final EV3TouchSensor touchSensor;
+    final Sound sound = Sound.getInstance();
+
     final BasicMovements basicMovements;
+
+    final CircularFifoQueue<Long> obstacles = new CircularFifoQueue<>(3);
+    boolean invertedDirection = false;
 
     volatile boolean interrupted = false;
 
@@ -37,6 +44,16 @@ public class ObstaclesAvoider implements Behavior {
     }
 
     public void handleObstacles() {
+        obstacles.add(System.currentTimeMillis());
+        if (obstacles.isAtFullCapacity()) {
+            final var oldest = obstacles.poll();
+            if (oldest != null && System.currentTimeMillis() - oldest < 10000) {
+                System.out.println("Too many obstacles, inverting direction");
+                sound.beep();
+                this.invertedDirection = !this.invertedDirection;
+                obstacles.clear();
+            }
+        }
         handleObstaclesAtDistance();
         handleObstaclesAtTouch();
     }
@@ -68,7 +85,7 @@ public class ObstaclesAvoider implements Behavior {
             basicMovements.forward();
         }
         if (!this.interrupted) {
-            basicMovements.moveAroundObstacle();
+            basicMovements.moveAroundObstacle(this.invertedDirection);
         }
     }
 

@@ -79,12 +79,15 @@ public class BasicMovements implements Behavior {
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
     }
 
-    public void moveAroundObstacle() {
+    public void moveAroundObstacle(final boolean invertedDirection) {
         setSpeedForBothMotors(TURN_MOTOR_SPEED);
         System.out.println("Rotation started");
         System.out.println("First part of rotation");
         final var direction = random.nextInt(100) > 20;
-        final var angle = direction ? 20 : -20;
+        var angle = direction ? 20 : -20;
+        if (invertedDirection) {
+            angle = -angle;
+        }
         turn.rotate(angle);
         turn.stop();
         Delay.msDelay(1000);
