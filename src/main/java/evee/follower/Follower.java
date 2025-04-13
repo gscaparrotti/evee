@@ -1,12 +1,12 @@
 package evee.follower;
 
 import ev3dev.actuators.ev3.EV3Led;
+import ev3dev.actuators.ev3.EV3Led.Direction;
 import ev3dev.sensors.ev3.EV3ColorSensor;
 import evee.basicMovements.BasicMovements;
 import evee.utils.Utils;
 import lejos.hardware.port.SensorPort;
 import lejos.robotics.Color;
-import lejos.robotics.filter.MedianFilter;
 import lejos.robotics.subsumption.Behavior;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
@@ -15,18 +15,20 @@ import org.jeasy.states.api.Transition.PeriodicEvent;
 import org.jeasy.states.core.FiniteStateMachineBuilder;
 import org.jeasy.states.core.TransitionBuilder;
 
-import java.util.Random;
 import java.util.Set;
 
 import static evee.follower.Follower.RotationKind.LEFT;
 import static evee.follower.Follower.RotationKind.RIGHT;
+import static evee.utils.Utils.LOGGER;
+import static evee.utils.Utils.RANDOM;
+import static lejos.robotics.Color.BLACK;
 
 public class Follower implements Behavior {
 
     final BasicMovements basicMovements;
     final EV3ColorSensor colorSensor = new EV3ColorSensor(SensorPort.S3);
 
-    final MedianFilter filter = new MedianFilter(colorSensor, 3);
+    final float[] buffer = new float[1];
 
     final FollowerStateMachine followerStateMachine;
 
@@ -38,7 +40,7 @@ public class Follower implements Behavior {
 
     @Override
     public boolean takeControl() {
-        System.out.println("Evaluating Follower");
+        LOGGER.debug("Evaluating Follower");
         return basicMovements.isStarted();
     }
 
@@ -49,25 +51,16 @@ public class Follower implements Behavior {
     }
 
     @Override
-    public void suppress() {
-
-    }
+    public void suppress() { }
 
     private int getColorID() {
-        final float[] buffer = new float[1];
-        filter.fetchSample(buffer, 0);
+        colorSensor.fetchSample(buffer, 0);
         final var colorID = (int) buffer[0];
         Utils.logColorID(colorID);
         return colorID;
     }
 
     private static class FollowerStateMachine {
-
-        private static final Random RANDOM = new Random();
-
-        static {
-            RANDOM.nextInt();
-        }
 
         private static class BlackDetectedEvent extends AbstractEvent { }
         private static class NotBlackDetectedEvent extends AbstractEvent { }
@@ -83,70 +76,73 @@ public class Follower implements Behavior {
         );
 
         private BasicMovements basicMovements;
-        private final EV3Led led = new EV3Led(EV3Led.Direction.LEFT);
+        private final EV3Led led = new EV3Led(Direction.LEFT);
 
         private final Transition BLACK_DETECTED_TRANSITION = new TransitionBuilder()
             .name("BLACK_DETECTED")
             .sourceState(BLACK_NOT_FOUND)
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
-            .eventHandler((event) -> {
+            .eventHandler(event -> {
                 basicMovements.rotateToAngle(LEFT.angle);
                 led.setPattern(3);
-                System.out.println("BLACK_DETECTED");
+                LOGGER.debug("BLACK_DETECTED");
             })
             .build();
+
         private final Transition BLACK_DETECTED_AGAIN_TRANSITION = new TransitionBuilder()
-            .name("BLACK_DETECTED_AGAIN_TRANSITION")
+            .name("BLACK_DETECTED_AGAIN")
             .sourceState(BLACK_LOST)
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
-            .eventHandler((event) -> {
+            .eventHandler(event -> {
                 basicMovements.rotateToAngle(LEFT.angle);
                 led.setPattern(3);
-                System.out.println("BLACK_DETECTED_AGAIN_TRANSITION");
+                LOGGER.debug("BLACK_DETECTED_AGAIN");
             })
             .build();
+
         private final Transition NOT_BLACK_DETECTED_TRANSITION = new TransitionBuilder()
             .name("NOT_BLACK_DETECTED")
             .sourceState(BLACK_FOUND)
             .targetState(BLACK_LOST)
             .eventType(NotBlackDetectedEvent.class)
-            .eventHandler((event -> {
+            .eventHandler(event -> {
                 basicMovements.rotateToAngle(RIGHT.angle);
                 led.setPattern(2);
-                System.out.println("NOT_BLACK_DETECTED");
-            }))
+                LOGGER.debug("NOT_BLACK_DETECTED");
+            })
             .build();
+
         private final Transition BLACK_DETECTION_TOO_OLD_TRANSITION = new TransitionBuilder()
             .name("BLACK_DETECTION_TOO_OLD")
             .sourceState(BLACK_LOST)
             .targetState(BLACK_NOT_FOUND)
             .period(2000)
             .eventType(PeriodicEvent.class)
-            .eventHandler((event -> {
+            .eventHandler(event -> {
                 basicMovements.rotateToAngle(0);
                 basicMovements.backOff();
                 basicMovements.forward();
                 led.setPattern(0);
-                System.out.println("BLACK_DETECTION_TOO_OLD");
-            }))
+                LOGGER.debug("BLACK_DETECTION_TOO_OLD");
+            })
             .build();
 
-        private final Transition BLACK_DETECTION_STILL_TOO_OLD_TRANSITION = new TransitionBuilder()
-            .name("BLACK_DETECTION_TOO_OLD")
+        private final Transition BLACK_NOT_FOUND_TRANSITION = new TransitionBuilder()
+            .name("BLACK_NOT_FOUND")
             .sourceState(BLACK_NOT_FOUND)
             .targetState(BLACK_NOT_FOUND)
             .period(2000)
             .eventType(PeriodicEvent.class)
-            .eventHandler((event -> {
+            .eventHandler(event -> {
                 final var randomAngle = RANDOM.nextInt(15);
                 final var sign = RANDOM.nextBoolean() ? 1 : -1;
-                System.out.println("New random angle: " + randomAngle + ", sign: " + sign);
+                LOGGER.debug("New random angle: " + randomAngle + ", sign: " + sign);
                 basicMovements.rotateToAngle(randomAngle * sign);
                 led.setPattern(0);
-                System.out.println("BLACK_DETECTION_TOO_OLD");
-            }))
+                LOGGER.debug("BLACK_NOT_FOUND");
+            })
             .build();
 
         private final Set<Transition> TRANSITIONS = Set.of(
@@ -154,7 +150,7 @@ public class Follower implements Behavior {
             BLACK_DETECTED_AGAIN_TRANSITION,
             NOT_BLACK_DETECTED_TRANSITION,
             BLACK_DETECTION_TOO_OLD_TRANSITION,
-            BLACK_DETECTION_STILL_TOO_OLD_TRANSITION
+            BLACK_NOT_FOUND_TRANSITION
         );
 
         private final FiniteStateMachine fsm = new FiniteStateMachineBuilder(STATES, BLACK_NOT_FOUND)
@@ -166,7 +162,7 @@ public class Follower implements Behavior {
         }
 
         public void update(final int colorID) throws FiniteStateMachineException {
-            fsm.fire(colorID == Color.BLACK ? new BlackDetectedEvent() : new NotBlackDetectedEvent());
+            fsm.fire(colorID == BLACK ? new BlackDetectedEvent() : new NotBlackDetectedEvent());
             fsm.evaluatePeriodic();
         }
 
@@ -174,7 +170,7 @@ public class Follower implements Behavior {
 
     @AllArgsConstructor
     enum RotationKind {
-        LEFT(-8), RIGHT(8);
+        LEFT(-30), RIGHT(30);
         final int angle;
     }
 

@@ -22,4 +22,9 @@ public class BackwardsEV3LargeRegulatedMotor extends EV3LargeRegulatedMotor {
     public void backward() {
         super.forward();
     }
+
+    public boolean isOverloaded() {
+        return (this.getStringAttribute(STATE).contains("overloaded"));
+    }
+
 }

@@ -6,6 +6,8 @@ import evee.obstacles.ObstaclesAvoider;
 import lejos.robotics.subsumption.Arbitrator;
 import lejos.robotics.subsumption.Behavior;
 
+import static evee.utils.Utils.LOGGER;
+
 @SuppressWarnings("FieldCanBeLocal")
 public class Robot {
 
@@ -23,7 +25,7 @@ public class Robot {
     }
 
     private void runRobot() {
-        System.out.println("Welcome!");
+        LOGGER.info("Welcome!");
         this.arbitrator.go();
     }
 

@@ -10,7 +10,9 @@ import lejos.robotics.subsumption.Behavior;
 import lejos.utility.Delay;
 import lombok.Getter;
 
-import java.util.Random;
+import static evee.utils.Notifications.Beep.DOUBLE_BEEP;
+import static evee.utils.Notifications.beep;
+import static evee.utils.Utils.*;
 
 public class BasicMovements implements Behavior {
 
@@ -21,8 +23,6 @@ public class BasicMovements implements Behavior {
     volatile boolean started = false;
 
     private int currentAngle = -1;
-
-    final Random random = new Random();
 
     public BasicMovements() {
         this.createMotorsAndSensors();
@@ -45,22 +45,24 @@ public class BasicMovements implements Behavior {
     }
 
     private void createMotorsAndSensors() {
-        System.out.println("Creating Motors");
+        LOGGER.debug("Creating Motors");
         motorLeft = new BackwardsEV3LargeRegulatedMotor(MotorPort.A);
         motorRight = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
         turn = new EV3MediumRegulatedMotor(MotorPort.C);
-        System.out.println("Configuring motors");
+        LOGGER.debug("Configuring motors");
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
         turn.setSpeed(STRAIGHT_MOTOR_SPEED);
         calibrate();
     }
 
+    @Getter
     private BackwardsEV3LargeRegulatedMotor motorLeft;
+    @Getter
     private BackwardsEV3LargeRegulatedMotor motorRight;
     private EV3MediumRegulatedMotor turn;
 
     public void forward() {
-        System.out.println("Moving forward");
+        LOGGER.debug("Moving forward");
         motorLeft.forward();
         motorRight.forward();
     }
@@ -71,19 +73,19 @@ public class BasicMovements implements Behavior {
 
     public void backOff(int time) {
         setSpeedForBothMotors(TURN_MOTOR_SPEED);
-        fltBothMotors();
+        //fltBothMotors();
         motorRight.backward();
         motorLeft.backward();
         Delay.msDelay(time);
-        fltBothMotors();
+        //fltBothMotors();
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
     }
 
     public void moveAroundObstacle(final boolean invertedDirection) {
         setSpeedForBothMotors(TURN_MOTOR_SPEED);
-        System.out.println("Rotation started");
-        System.out.println("First part of rotation");
-        final var direction = random.nextInt(100) > 20;
+        LOGGER.debug("Rotation started");
+        LOGGER.debug("First part of rotation");
+        final var direction = RANDOM.nextInt(100) > 20;
         var angle = direction ? 20 : -20;
         if (invertedDirection) {
             angle = -angle;
@@ -91,10 +93,10 @@ public class BasicMovements implements Behavior {
         turn.rotate(angle);
         turn.stop();
         Delay.msDelay(1000);
-        System.out.println("Second part of rotation");
+        LOGGER.debug("Second part of rotation");
         turn.rotate(-angle);
         turn.stop();
-        System.out.println("Rotation completed");
+        LOGGER.debug("Rotation completed");
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
     }
 
@@ -114,9 +116,6 @@ public class BasicMovements implements Behavior {
     }
 
     public void rotateToAngle(final int angle) {
-        final var stackTrace = Thread.currentThread().getStackTrace();
-        final var caller = stackTrace[stackTrace.length - 2];
-        System.out.println(caller.getClassName() + " " + caller.getMethodName() + " " + angle);
         if (currentAngle < 0 || currentAngle != angle) {
             turn.rotateTo(angle);
             currentAngle = angle;
@@ -125,7 +124,8 @@ public class BasicMovements implements Behavior {
 
     @SuppressWarnings({"LoopConditionNotUpdatedInsideLoop", "StatementWithEmptyBody"})
     public void calibrate() {
-        System.out.println("Waiting for calibration");
+        LOGGER.info("Waiting for calibration");
+        beep(DOUBLE_BEEP);
         final boolean[] calibrated = {false};
         final var allKeys = new EV3Key(EV3Key.BUTTON_ALL);
         allKeys.addKeyListener(new CalibrationKeyListener(calibrated));
@@ -145,23 +145,23 @@ public class BasicMovements implements Behavior {
 
         @Override
         public void keyPressed(Key k) {
-            System.out.println(k + " pressed");
-            System.out.println("Button ID: " + k.getId());
+            LOGGER.debug("{} pressed", k);
+            LOGGER.debug("Button ID: {}", k.getId());
             switch (k.getId()) {
                 case EV3Key.BUTTON_ENTER:
                     calibrated[0] = true;
-                    System.out.println("Calibration completed");
+                    LOGGER.debug("Calibration completed");
                     turn.resetTachoCount();
                     break;
                 case EV3Key.BUTTON_LEFT:
                     turn.rotate(1);
                     turn.stop();
-                    System.out.println("Turn left");
+                    LOGGER.debug("Turn left");
                     break;
                 case EV3Key.BUTTON_RIGHT:
                     turn.rotate(-1);
                     turn.stop();
-                    System.out.println("Turn right");
+                    LOGGER.debug("Turn right");
                     break;
             }
         }
