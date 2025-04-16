@@ -62,8 +62,18 @@ public class Follower implements Behavior {
 
     private static class FollowerStateMachine {
 
-        private static class BlackDetectedEvent extends AbstractEvent { }
-        private static class NotBlackDetectedEvent extends AbstractEvent { }
+        private final BlackDetectedEvent blackDetectedEvent;
+        private final NotBlackDetectedEvent notBlackDetectedEvent;
+
+        private static abstract class AbstractEventWithUpdatableTimestamp extends AbstractEvent {
+            public AbstractEventWithUpdatableTimestamp withUpdatedTimestamp() {
+                this.timestamp = System.currentTimeMillis();
+                return this;
+            }
+        }
+
+        private static class BlackDetectedEvent extends AbstractEventWithUpdatableTimestamp { }
+        private static class NotBlackDetectedEvent extends AbstractEventWithUpdatableTimestamp { }
 
         private static final State BLACK_NOT_FOUND = new State("BLACK_NOT_FOUND");
         private static final State BLACK_FOUND = new State("BLACK_FOUND");
@@ -159,18 +169,26 @@ public class Follower implements Behavior {
 
         private FollowerStateMachine(final BasicMovements basicMovements) {
             this.basicMovements = basicMovements;
+            this.blackDetectedEvent = new BlackDetectedEvent();
+            this.notBlackDetectedEvent = new NotBlackDetectedEvent();
         }
 
         public void update(final int colorID) throws FiniteStateMachineException {
-            fsm.fire(colorID == BLACK ? new BlackDetectedEvent() : new NotBlackDetectedEvent());
+            fsm.fire(getEvent(colorID));
             fsm.evaluatePeriodic();
+        }
+
+        private Event getEvent(int colorID) {
+            return colorID == BLACK
+                ? this.blackDetectedEvent.withUpdatedTimestamp()
+                : this.notBlackDetectedEvent.withUpdatedTimestamp();
         }
 
     }
 
     @AllArgsConstructor
     enum RotationKind {
-        LEFT(-30), RIGHT(30);
+        LEFT(-32), RIGHT(32);
         final int angle;
     }
 
