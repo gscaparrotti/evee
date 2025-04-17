@@ -21,7 +21,6 @@ import static evee.follower.Follower.RotationKind.LEFT;
 import static evee.follower.Follower.RotationKind.RIGHT;
 import static evee.utils.Utils.LOGGER;
 import static evee.utils.Utils.RANDOM;
-import static lejos.robotics.Color.BLACK;
 
 public class Follower implements Behavior {
 
@@ -34,6 +33,7 @@ public class Follower implements Behavior {
 
     public Follower(BasicMovements basicMovements) {
         this.colorSensor.setFloodlight(Color.WHITE);
+        this.colorSensor.getRedMode();
         this.basicMovements = basicMovements;
         this.followerStateMachine = new FollowerStateMachine(this.basicMovements);
     }
@@ -47,13 +47,13 @@ public class Follower implements Behavior {
     @Override
     @SneakyThrows
     public void action() {
-        this.followerStateMachine.update(getColorID());
+        this.followerStateMachine.update(getSensorValue());
     }
 
     @Override
     public void suppress() { }
 
-    private int getColorID() {
+    private int getSensorValue() {
         colorSensor.fetchSample(buffer, 0);
         final var colorID = (int) buffer[0];
         Utils.logColorID(colorID);
@@ -173,13 +173,13 @@ public class Follower implements Behavior {
             this.notBlackDetectedEvent = new NotBlackDetectedEvent();
         }
 
-        public void update(final int colorID) throws FiniteStateMachineException {
-            fsm.fire(getEvent(colorID));
+        public void update(final int sensorValue) throws FiniteStateMachineException {
+            fsm.fire(getEvent(sensorValue));
             fsm.evaluatePeriodic();
         }
 
-        private Event getEvent(int colorID) {
-            return colorID == BLACK
+        private Event getEvent(int sensorValue) {
+            return sensorValue <= 10
                 ? this.blackDetectedEvent.withUpdatedTimestamp()
                 : this.notBlackDetectedEvent.withUpdatedTimestamp();
         }
