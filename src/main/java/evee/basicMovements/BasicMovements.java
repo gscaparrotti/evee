@@ -16,8 +16,8 @@ import static evee.utils.Utils.*;
 
 public class BasicMovements implements Behavior {
 
-    private static final int TURN_MOTOR_SPEED = 400;
-    private static final int STRAIGHT_MOTOR_SPEED = 500;
+    public static final int TURN_MOTOR_SPEED = 400;
+    public static final int STRAIGHT_MOTOR_SPEED = 500;
 
     @Getter
     volatile boolean started = false;
@@ -78,25 +78,6 @@ public class BasicMovements implements Behavior {
         motorLeft.backward();
         Delay.msDelay(time);
         //fltBothMotors();
-        setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
-    }
-
-    public void moveAroundObstacle(final boolean invertedDirection) {
-        setSpeedForBothMotors(TURN_MOTOR_SPEED);
-        LOGGER.debug("Rotation started");
-        LOGGER.debug("First part of rotation");
-        final var direction = RANDOM.nextInt(100) > 20;
-        var angle = direction ? 20 : -20;
-        if (invertedDirection) {
-            angle = -angle;
-        }
-        turn.rotate(angle);
-        turn.stop();
-        Delay.msDelay(1000);
-        LOGGER.debug("Second part of rotation");
-        turn.rotate(-angle);
-        turn.stop();
-        LOGGER.debug("Rotation completed");
         setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
     }
 

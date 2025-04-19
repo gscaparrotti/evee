@@ -188,7 +188,7 @@ public class Follower implements Behavior {
 
     @AllArgsConstructor
     enum RotationKind {
-        LEFT(-32), RIGHT(32);
+        LEFT(-28), RIGHT(33);
         final int angle;
     }
 

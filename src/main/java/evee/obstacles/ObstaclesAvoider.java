@@ -3,14 +3,18 @@ package evee.obstacles;
 import ev3dev.sensors.ev3.EV3IRSensor;
 import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.basicMovements.BasicMovements;
+import evee.utils.Notifications;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.SensorMode;
 import lejos.robotics.subsumption.Behavior;
 import org.apache.commons.collections4.queue.CircularFifoQueue;
 
+import static evee.basicMovements.BasicMovements.STRAIGHT_MOTOR_SPEED;
+import static evee.basicMovements.BasicMovements.TURN_MOTOR_SPEED;
 import static evee.utils.Notifications.Beep.*;
 import static evee.utils.Notifications.beep;
 import static evee.utils.Utils.LOGGER;
+import static evee.utils.Utils.RANDOM;
 
 public class ObstaclesAvoider implements Behavior {
 
@@ -20,6 +24,7 @@ public class ObstaclesAvoider implements Behavior {
     private boolean invertedDirection = false;
 
     private volatile boolean interrupted = false;
+    private volatile Thread sleepingThread = null;
 
     private final SensorMode touchMode;
     private final float[] touchSample;
@@ -54,6 +59,9 @@ public class ObstaclesAvoider implements Behavior {
     @Override
     public void suppress() {
         this.interrupted = true;
+        if (this.sleepingThread != null) {
+            this.sleepingThread.interrupt();
+        }
     }
 
     public void handleObstacles() {
@@ -99,7 +107,32 @@ public class ObstaclesAvoider implements Behavior {
             basicMovements.forward();
         }
         if (!this.interrupted) {
-            basicMovements.moveAroundObstacle(this.invertedDirection);
+            moveAroundObstacle(this.invertedDirection);
+        }
+    }
+
+    private void moveAroundObstacle(final boolean invertedDirection) {
+        try {
+            basicMovements.setSpeedForBothMotors(TURN_MOTOR_SPEED);
+            LOGGER.debug("Rotation started");
+            LOGGER.debug("First part of rotation");
+            final var direction = RANDOM.nextInt(100) > 20;
+            var angle = direction ? 20 : -20;
+            if (invertedDirection) {
+                angle = -angle;
+            }
+            basicMovements.rotateToAngle(angle);
+            this.sleepingThread = Thread.currentThread();
+            Thread.sleep(1000);
+        } catch (InterruptedException ignored) {
+            LOGGER.debug("Rotation interrupted");
+            Notifications.beep(SINGLE_VERY_HIGH_BEEP);
+        } finally {
+            this.sleepingThread = null;
+            LOGGER.debug("Second part of rotation");
+            basicMovements.rotateToAngle(0);
+            LOGGER.debug("Rotation completed");
+            basicMovements.setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
         }
     }
 

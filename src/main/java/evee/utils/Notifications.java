@@ -1,6 +1,7 @@
 package evee.utils;
 
 import ev3dev.actuators.Sound;
+import lombok.SneakyThrows;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -15,9 +16,12 @@ public class Notifications {
     }
 
     static  {
-        final var notificationThread = new Thread(() -> {
+        @SuppressWarnings("Convert2Lambda") // because of @SneakyThrows
+        final var notificationThread = new Thread(new Runnable() {
+            @Override
+            @SneakyThrows
+            public void run() {
             while (true) {
-                try {
                     final var nextBeep = BEEPS.take();
                     switch (nextBeep) {
                         case SINGLE_LOW_BEEP:
@@ -31,7 +35,7 @@ public class Notifications {
                             SOUND.twoBeeps();
                             break;
                     }
-                } catch (InterruptedException ignored) { }
+                }
             }
         });
         notificationThread.setDaemon(true);
@@ -42,6 +46,7 @@ public class Notifications {
         SINGLE_LOW_BEEP(null),
         SINGLE_MEDIUM_BEEP(500),
         SINGLE_HIGH_BEEP(1000),
+        SINGLE_VERY_HIGH_BEEP(1300),
         DOUBLE_BEEP(null);
 
         final Integer frequency;
