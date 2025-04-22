@@ -9,6 +9,7 @@ import lejos.hardware.port.MotorPort;
 import lejos.robotics.subsumption.Behavior;
 import lejos.utility.Delay;
 import lombok.Getter;
+import org.apache.commons.lang3.mutable.MutableObject;
 
 import static evee.utils.Notifications.Beep.DOUBLE_BEEP;
 import static evee.utils.Notifications.beep;
@@ -18,6 +19,12 @@ public class BasicMovements implements Behavior {
 
     public static final int TURN_MOTOR_SPEED = 400;
     public static final int STRAIGHT_MOTOR_SPEED = 500;
+
+    @Getter
+    private BackwardsEV3LargeRegulatedMotor motorLeft;
+    @Getter
+    private BackwardsEV3LargeRegulatedMotor motorRight;
+    private EV3MediumRegulatedMotor turn;
 
     @Getter
     volatile boolean started = false;
@@ -55,12 +62,6 @@ public class BasicMovements implements Behavior {
         calibrate();
     }
 
-    @Getter
-    private BackwardsEV3LargeRegulatedMotor motorLeft;
-    @Getter
-    private BackwardsEV3LargeRegulatedMotor motorRight;
-    private EV3MediumRegulatedMotor turn;
-
     public void forward() {
         LOGGER.debug("Moving forward");
         motorLeft.forward();
@@ -97,27 +98,29 @@ public class BasicMovements implements Behavior {
     }
 
     public void rotateToAngle(final int angle) {
+        LOGGER.info("Rotate to {}", angle);
         if (currentAngle < 0 || currentAngle != angle) {
             turn.rotateTo(angle);
+            turn.stop();
             currentAngle = angle;
         }
     }
 
-    @SuppressWarnings({"LoopConditionNotUpdatedInsideLoop", "StatementWithEmptyBody"})
+    @SuppressWarnings({"StatementWithEmptyBody"})
     public void calibrate() {
         LOGGER.info("Waiting for calibration");
         beep(DOUBLE_BEEP);
-        final boolean[] calibrated = {false};
+        final MutableObject<Boolean> calibrated = new MutableObject<>(false);
         final var allKeys = new EV3Key(EV3Key.BUTTON_ALL);
         allKeys.addKeyListener(new CalibrationKeyListener(calibrated));
-        while (!calibrated[0]) {}
+        while (!calibrated.getValue()) {}
     }
 
     private class CalibrationKeyListener implements KeyListener {
 
-        private final boolean[] calibrated;
+        private final MutableObject<Boolean> calibrated;
 
-        public CalibrationKeyListener(boolean[] calibrated) {
+        public CalibrationKeyListener(final MutableObject<Boolean> calibrated) {
             this.calibrated = calibrated;
         }
 
@@ -130,7 +133,7 @@ public class BasicMovements implements Behavior {
             LOGGER.debug("Button ID: {}", k.getId());
             switch (k.getId()) {
                 case EV3Key.BUTTON_ENTER:
-                    calibrated[0] = true;
+                    calibrated.setValue(true);
                     LOGGER.debug("Calibration completed");
                     turn.resetTachoCount();
                     break;
