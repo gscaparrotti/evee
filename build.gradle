@@ -21,6 +21,7 @@ repositories {
 dependencies {
     implementation("org.slf4j:slf4j-simple:1.7.25")
     implementation("com.github.ev3dev-lang-java:ev3dev-lang-java:2.6.2-SNAPSHOT")
+    implementation 'com.github.ev3dev-lang-java:lejos-navigation:0.2.3-SNAPSHOT'
     implementation 'com.github.gscaparrotti:easy-states:9a1852dde4'
     implementation 'org.apache.commons:commons-collections4:4.4'
     implementation 'org.apache.commons:commons-lang3:3.17.0'
