@@ -23,8 +23,7 @@ public class Bluetooth implements Behavior {
         if (command.equals(BluetoothCommands.START)) {
             active = true;
         } else if (command.equals(BluetoothCommands.STOP)) {
-            basicMovements.rotateToAngle(0);
-            basicMovements.forward();
+            basicMovements.travel(0, 1);
             active = false;
         }
     }
@@ -42,22 +41,22 @@ public class Bluetooth implements Behavior {
             final var angle = commandAndAngle.getValue();
             switch (command) {
                 case START:
-                    basicMovements.rotateToAngle(0);
+                    basicMovements.travel(0);
                     basicMovements.stop();
                     break;
                 case STOP:
                     break;
                 case UP:
-                    basicMovements.forward();
+                    basicMovements.travel(0);
                     break;
                 case DOWN:
-                    basicMovements.backOff(10);
+                    basicMovements.travel(0, -100);
                     break;
                 case LEFT:
-                    basicMovements.rotateToAngle(angle);
+                    basicMovements.travel(angle);
                     break;
                 case RIGHT:
-                    basicMovements.rotateToAngle(-angle);
+                    basicMovements.travel(-angle);
                     break;
             }
         }

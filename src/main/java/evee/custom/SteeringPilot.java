@@ -150,8 +150,8 @@ public class SteeringPilot implements ArcMoveController, RegulatedMotorListener 
 		/* System.out.println("LEFT " + l);
 		System.out.println("RIGHT " + r); */
 				
-		minRight = r;
-		minLeft = l;
+		minRight = r / 2;
+		minLeft = l / 2;
 		
 		// TODO: I'm not sure if reverse steering works yet with actual SteeringPilot class. 
 		
@@ -247,7 +247,7 @@ public class SteeringPilot implements ArcMoveController, RegulatedMotorListener 
 		// TODO: This if() block is a temporary kludge due to Motor.rotate() bug with Integer.MIN_VALUE:
 		// Remove this if Roger changes Motor.rotate().
 		if((distance == Double.NEGATIVE_INFINITY) | (distance == Double.POSITIVE_INFINITY)) {
-			driveMotor.backward();
+			//driveMotor.backward();
 			//return moveEvent;
 		}
 		

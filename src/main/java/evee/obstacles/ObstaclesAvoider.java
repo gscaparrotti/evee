@@ -32,13 +32,13 @@ public class ObstaclesAvoider implements Behavior {
     private final SensorMode distanceMode;
     private final float[] distanceSample;
 
-    private final boolean[] obstaclesDetected = new boolean[] {false, false};
+    private final boolean[] obstaclesDetected = new boolean[]{false, false};
 
     public ObstaclesAvoider(BasicMovements basicMovements) {
         this.basicMovements = basicMovements;
         final var irSensor = new EV3IRSensor(SensorPort.S1);
         final var touchSensor = new EV3TouchSensor(SensorPort.S2);
-        this.touchMode =  touchSensor.getTouchMode();
+        this.touchMode = touchSensor.getTouchMode();
         this.touchSample = new float[touchMode.sampleSize()];
         this.distanceMode = irSensor.getDistanceMode();
         this.distanceSample = new float[distanceMode.sampleSize()];
@@ -99,21 +99,13 @@ public class ObstaclesAvoider implements Behavior {
 
     private void circumvent() {
         if (!this.interrupted) {
-            basicMovements.rotateToAngle(0);
-        }
-        if (!this.interrupted) {
-            basicMovements.backOff();
-        }
-        if (!this.interrupted) {
-            basicMovements.forward();
-        }
-        if (!this.interrupted) {
             moveAroundObstacle(this.invertedDirection);
         }
     }
 
     private void moveAroundObstacle(final boolean invertedDirection) {
         try {
+            basicMovements.travel(0, -200);
             basicMovements.setSpeedForBothMotors(TURN_MOTOR_SPEED);
             LOGGER.debug("Rotation started");
             LOGGER.debug("First part of rotation");
@@ -122,7 +114,7 @@ public class ObstaclesAvoider implements Behavior {
             if (invertedDirection) {
                 angle = -angle;
             }
-            basicMovements.rotateToAngle(angle);
+            basicMovements.travel(angle);
             this.sleepingThread = Thread.currentThread();
             Thread.sleep(1000);
         } catch (InterruptedException ignored) {
@@ -131,7 +123,7 @@ public class ObstaclesAvoider implements Behavior {
         } finally {
             this.sleepingThread = null;
             LOGGER.debug("Second part of rotation");
-            basicMovements.rotateToAngle(0);
+            //basicMovements.travel(0);
             LOGGER.debug("Rotation completed");
             basicMovements.setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
         }

@@ -94,9 +94,21 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.rotateToAngle(LEFT.angle);
+                basicMovements.travel(LEFT.angle);
                 led.setPattern(3);
-                LOGGER.debug("BLACK_DETECTED");
+                LOGGER.info("BLACK_DETECTED");
+            })
+            .build();
+
+        private final Transition BLACK_CONTINUOUSLY_DETECTED_TRANSITION = new TransitionBuilder()
+            .name("BLACK_DETECTED")
+            .sourceState(BLACK_FOUND)
+            .targetState(BLACK_FOUND)
+            .eventType(BlackDetectedEvent.class)
+            .eventHandler(event -> {
+                basicMovements.travel(LEFT.angle);
+                led.setPattern(3);
+                LOGGER.info("BLACK_CONTINUOUSLY_DETECTED");
             })
             .build();
 
@@ -106,9 +118,9 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.rotateToAngle(LEFT.angle);
+                basicMovements.travel(LEFT.angle);
                 led.setPattern(3);
-                LOGGER.debug("BLACK_DETECTED_AGAIN");
+                LOGGER.info("BLACK_DETECTED_AGAIN");
             })
             .build();
 
@@ -118,9 +130,9 @@ public class Follower implements Behavior {
             .targetState(BLACK_LOST)
             .eventType(NotBlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.rotateToAngle(RIGHT.angle);
+                basicMovements.travel(RIGHT.angle);
                 led.setPattern(2);
-                LOGGER.debug("NOT_BLACK_DETECTED");
+                LOGGER.info("NOT_BLACK_DETECTED");
             })
             .build();
 
@@ -128,14 +140,13 @@ public class Follower implements Behavior {
             .name("BLACK_DETECTION_TOO_OLD")
             .sourceState(BLACK_LOST)
             .targetState(BLACK_NOT_FOUND)
-            .period(2000)
+            .period(1000)
             .eventType(PeriodicEvent.class)
             .eventHandler(event -> {
-                basicMovements.rotateToAngle(0);
-                basicMovements.backOff();
-                basicMovements.forward();
+                basicMovements.travel(0, -100);
+                basicMovements.travel(0, 100);
                 led.setPattern(0);
-                LOGGER.debug("BLACK_DETECTION_TOO_OLD");
+                LOGGER.info("BLACK_DETECTION_TOO_OLD");
             })
             .build();
 
@@ -143,20 +154,21 @@ public class Follower implements Behavior {
             .name("BLACK_NOT_FOUND")
             .sourceState(BLACK_NOT_FOUND)
             .targetState(BLACK_NOT_FOUND)
-            .period(2000)
+            .period(1000)
             .eventType(PeriodicEvent.class)
             .eventHandler(event -> {
                 final var randomAngle = RANDOM.nextInt(15);
                 final var sign = RANDOM.nextBoolean() ? 1 : -1;
                 LOGGER.debug("New random angle: " + randomAngle + ", sign: " + sign);
-                basicMovements.rotateToAngle(randomAngle * sign);
+                basicMovements.travel(randomAngle * sign);
                 led.setPattern(0);
-                LOGGER.debug("BLACK_NOT_FOUND");
+                LOGGER.info("BLACK_NOT_FOUND");
             })
             .build();
 
         private final Set<Transition> TRANSITIONS = Set.of(
             BLACK_DETECTED_TRANSITION,
+            BLACK_CONTINUOUSLY_DETECTED_TRANSITION,
             BLACK_DETECTED_AGAIN_TRANSITION,
             NOT_BLACK_DETECTED_TRANSITION,
             BLACK_DETECTION_TOO_OLD_TRANSITION,
