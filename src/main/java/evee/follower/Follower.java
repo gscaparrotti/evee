@@ -62,8 +62,10 @@ public class Follower implements Behavior {
 
     private static class FollowerStateMachine {
 
-        private final BlackDetectedEvent blackDetectedEvent;
-        private final NotBlackDetectedEvent notBlackDetectedEvent;
+        public static final double DISTANCE = 120.0;
+
+        private static final BlackDetectedEvent BLACK_DETECTED_EVENT = new BlackDetectedEvent();
+        private final NotBlackDetectedEvent NOT_BLACK_DETECTED_EVENT = new NotBlackDetectedEvent();
 
         private static abstract class AbstractEventWithUpdatableTimestamp extends AbstractEvent {
             public AbstractEventWithUpdatableTimestamp withUpdatedTimestamp() {
@@ -94,7 +96,7 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(LEFT.angle);
+                basicMovements.travel(LEFT.angle, DISTANCE / 3);
                 led.setPattern(3);
                 LOGGER.info("BLACK_DETECTED");
             })
@@ -106,7 +108,7 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(LEFT.angle);
+                basicMovements.travel(LEFT.angle, DISTANCE / 3);
                 led.setPattern(3);
                 LOGGER.info("BLACK_CONTINUOUSLY_DETECTED");
             })
@@ -118,7 +120,7 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(LEFT.angle);
+                basicMovements.travel(LEFT.angle, DISTANCE / 3);
                 led.setPattern(3);
                 LOGGER.info("BLACK_DETECTED_AGAIN");
             })
@@ -130,9 +132,21 @@ public class Follower implements Behavior {
             .targetState(BLACK_LOST)
             .eventType(NotBlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(RIGHT.angle);
+                basicMovements.travel(RIGHT.angle, DISTANCE / 3);
                 led.setPattern(2);
                 LOGGER.info("NOT_BLACK_DETECTED");
+            })
+            .build();
+
+        private final Transition NOT_BLACK_DETECTED_AGAIN_TRANSITION = new TransitionBuilder()
+            .name("NOT_BLACK_DETECTED_AGAIN")
+            .sourceState(BLACK_LOST)
+            .targetState(BLACK_LOST)
+            .eventType(NotBlackDetectedEvent.class)
+            .eventHandler(event -> {
+                basicMovements.travel(RIGHT.angle, DISTANCE / 3);
+                led.setPattern(2);
+                LOGGER.info("NOT_BLACK_DETECTED_AGAIN");
             })
             .build();
 
@@ -140,11 +154,10 @@ public class Follower implements Behavior {
             .name("BLACK_DETECTION_TOO_OLD")
             .sourceState(BLACK_LOST)
             .targetState(BLACK_NOT_FOUND)
-            .period(1000)
+            .period(2000)
             .eventType(PeriodicEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(0, -100);
-                basicMovements.travel(0, 100);
+                basicMovements.travel(0, -150);
                 led.setPattern(0);
                 LOGGER.info("BLACK_DETECTION_TOO_OLD");
             })
@@ -154,12 +167,11 @@ public class Follower implements Behavior {
             .name("BLACK_NOT_FOUND")
             .sourceState(BLACK_NOT_FOUND)
             .targetState(BLACK_NOT_FOUND)
-            .period(1000)
-            .eventType(PeriodicEvent.class)
+            .eventType(NotBlackDetectedEvent.class)
             .eventHandler(event -> {
                 final var randomAngle = RANDOM.nextInt(15);
                 final var sign = RANDOM.nextBoolean() ? 1 : -1;
-                LOGGER.debug("New random angle: " + randomAngle + ", sign: " + sign);
+                LOGGER.debug("New random angle: {}, sign: {}", randomAngle, sign);
                 basicMovements.travel(randomAngle * sign);
                 led.setPattern(0);
                 LOGGER.info("BLACK_NOT_FOUND");
@@ -171,6 +183,7 @@ public class Follower implements Behavior {
             BLACK_CONTINUOUSLY_DETECTED_TRANSITION,
             BLACK_DETECTED_AGAIN_TRANSITION,
             NOT_BLACK_DETECTED_TRANSITION,
+            NOT_BLACK_DETECTED_AGAIN_TRANSITION,
             BLACK_DETECTION_TOO_OLD_TRANSITION,
             BLACK_NOT_FOUND_TRANSITION
         );
@@ -181,8 +194,6 @@ public class Follower implements Behavior {
 
         private FollowerStateMachine(final BasicMovements basicMovements) {
             this.basicMovements = basicMovements;
-            this.blackDetectedEvent = new BlackDetectedEvent();
-            this.notBlackDetectedEvent = new NotBlackDetectedEvent();
         }
 
         public void update(final int sensorValue) throws FiniteStateMachineException {
@@ -192,8 +203,8 @@ public class Follower implements Behavior {
 
         private Event getEvent(int sensorValue) {
             return sensorValue <= 10
-                ? this.blackDetectedEvent.withUpdatedTimestamp()
-                : this.notBlackDetectedEvent.withUpdatedTimestamp();
+                ? BLACK_DETECTED_EVENT.withUpdatedTimestamp()
+                : NOT_BLACK_DETECTED_EVENT.withUpdatedTimestamp();
         }
 
     }

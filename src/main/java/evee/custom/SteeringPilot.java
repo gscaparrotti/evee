@@ -150,8 +150,8 @@ public class SteeringPilot implements ArcMoveController, RegulatedMotorListener 
 		/* System.out.println("LEFT " + l);
 		System.out.println("RIGHT " + r); */
 				
-		minRight = r / 2;
-		minLeft = l / 2;
+		minRight = (int) ((double) r / 2.5);
+		minLeft = (int) ((double) l / 2.5);
 		
 		// TODO: I'm not sure if reverse steering works yet with actual SteeringPilot class. 
 		
@@ -165,6 +165,7 @@ public class SteeringPilot implements ArcMoveController, RegulatedMotorListener 
 		steeringMotor.resetTachoCount();
 		//steeringMotor.flt();
 		//steeringMotor.setStallThreshold(50,1000); // Reset to defaults.
+		steeringMotor.setSpeed(250);
 	}
 	
 	/**
