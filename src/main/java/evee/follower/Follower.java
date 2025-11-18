@@ -96,7 +96,7 @@ public class Follower implements Behavior {
             .targetState(BLACK_FOUND)
             .eventType(BlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(LEFT.angle, DISTANCE / 3);
+                basicMovements.travel(LEFT.angle, DISTANCE / 2);
                 led.setPattern(3);
                 LOGGER.info("BLACK_DETECTED");
             })
@@ -132,7 +132,7 @@ public class Follower implements Behavior {
             .targetState(BLACK_LOST)
             .eventType(NotBlackDetectedEvent.class)
             .eventHandler(event -> {
-                basicMovements.travel(RIGHT.angle, DISTANCE / 3);
+                basicMovements.travel(0, DISTANCE / 3);
                 led.setPattern(2);
                 LOGGER.info("NOT_BLACK_DETECTED");
             })
