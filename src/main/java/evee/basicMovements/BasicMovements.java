@@ -2,7 +2,6 @@ package evee.basicMovements;
 
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
-import evee.custom.CombinedMotor;
 import evee.custom.SteeringPilot;
 import lejos.hardware.port.MotorPort;
 import lejos.robotics.RegulatedMotor;
@@ -25,10 +24,10 @@ public class BasicMovements implements Behavior {
 
     public static final int TURN_MOTOR_SPEED = 400;
     public static final int STRAIGHT_MOTOR_SPEED = 500;
+    public static final double TURN_RADIUS = 155.0;
 
     volatile boolean started = false;
 
-    private RegulatedMotor motorLeft;
     private RegulatedMotor motorRight;
     private RegulatedMotor turn;
 
@@ -38,7 +37,7 @@ public class BasicMovements implements Behavior {
     @SneakyThrows
     public BasicMovements() {
         this.createMotorsAndSensors();
-        FileUtils.write(new File("output.txt"), LocalDateTime.now().toString() + "\n", true);
+        FileUtils.write(new File("output.txt"), LocalDateTime.now() + "\n", true);
     }
 
     @Override
@@ -58,12 +57,11 @@ public class BasicMovements implements Behavior {
 
     private void createMotorsAndSensors() {
         LOGGER.debug("Creating Motors");
-        this.motorLeft = new BackwardsEV3LargeRegulatedMotor(MotorPort.A);
         this.motorRight = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
         this.turn = new EV3MediumRegulatedMotor(MotorPort.C);
         LOGGER.debug("Configuring motors");
         //RegulatedMotor driveMotor = new CombinedMotor(motorLeft, motorRight);
-        this.steeringPilot = new SteeringPilot(42.0, motorLeft, turn, 140.0, 0, 0);
+        this.steeringPilot = new SteeringPilot(42.0, motorRight, turn, TURN_RADIUS, -1, -1);
         this.steeringPilot.calibrateSteering();
         this.poseProvider = new MyOdometryPoseProvider(this.steeringPilot);
         //this.steeringPilot.arcForward(300.0);
@@ -82,7 +80,7 @@ public class BasicMovements implements Behavior {
     }
 
     public void travel(final int angle, final double distance) {
-        var actualAngle = angle != 0.0 ? angle * 140.0 : Double.POSITIVE_INFINITY;
+        var actualAngle = angle != 0.0 ? angle * TURN_RADIUS : Double.POSITIVE_INFINITY;
         //this.steeringPilot.stop();
         this.steeringPilot.travelArc(actualAngle, distance, false);
     }
@@ -98,7 +96,7 @@ public class BasicMovements implements Behavior {
         public void moveStopped(Move move, MoveProvider mp) {
             super.moveStopped(move, mp);
             final var pose = this.getPose();
-            FileUtils.write(new File("output.txt"), pose.getX() + "," + pose.getY() + "\n", true);
+            FileUtils.write(new File("output.txt"), System.currentTimeMillis() + "," + pose.getX() + "," + pose.getY() + "\n", true);
         }
     }
 }

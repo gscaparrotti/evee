@@ -4,7 +4,6 @@ import ev3dev.sensors.ev3.EV3IRSensor;
 import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.basicMovements.BasicMovements;
 import evee.custom.MotorUtils;
-import evee.utils.Notifications;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.SensorMode;
 import lejos.robotics.subsumption.Behavior;
@@ -118,7 +117,7 @@ public class ObstaclesAvoider implements Behavior {
 
     private boolean isTouch() {
         touchMode.fetchSample(touchSample, 0);
-        final var isOverloaded = MotorUtils.isOverloaded(basicMovements.getMotorLeft()) || MotorUtils.isOverloaded(basicMovements.getMotorRight());
+        final var isOverloaded = MotorUtils.isOverloaded(basicMovements.getMotorRight());
         if (isOverloaded) {
             beep(SINGLE_HIGH_BEEP);
         }
