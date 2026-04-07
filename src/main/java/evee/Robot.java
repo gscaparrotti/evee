@@ -32,7 +32,7 @@ public class Robot {
         this.obstaclesAvoider = new ObstaclesAvoider(this.basicMovements);
         this.follower = new Follower(this.basicMovements);
         this.bluetooth = new Bluetooth(this.basicMovements);
-        this.arbitrator = new Arbitrator(new Behavior[]{this.basicMovements, this.follower, this.obstaclesAvoider, this.bluetooth});
+        this.arbitrator = new Arbitrator(new Behavior[]{this.basicMovements, this.follower,  this.bluetooth});
     }
 
     private void runRobot() {

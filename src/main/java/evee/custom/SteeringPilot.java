@@ -1,368 +1,157 @@
 package evee.custom;
 
 import lejos.robotics.RegulatedMotor;
-import lejos.robotics.RegulatedMotorListener;
-import lejos.robotics.navigation.ArcMoveController;
-import lejos.robotics.navigation.DifferentialPilot;
-import lejos.robotics.navigation.Move;
-import lejos.robotics.navigation.MoveListener;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
-/*
- * DEV NOTES: Should add an optional method to auto-calibrate the steering. With low power, rotate steering all 
- * the way to the left and record tacho limit, then all the way to the right and record tacho limit. Assumes
- * symmetrical steering values and estimates straight tacho value as average of two tacho counts. Make alternate
- * constructor that doesn't use leftTacho and rightTacho values but calls auto calibrate method.
- */
+import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
+import java.util.List;
 
-// TODO: Wikipedia article on Homotopy principle has some ideas about calculating position and steering of vehicle:
-// http://en.wikipedia.org/wiki/Homotopy_principle#A_car_in_the_plane
-// EQUATION: x sin A = y cos A 
-// where angle A describes orientation of the car  
+@RequiredArgsConstructor
+public class SteeringPilot {
 
-/**
- * <p>Vehicles that are controlled by the SteeringPilot class use a similar steering mechanism to a car, in which the 
- * front wheels pivot from side to side to control direction.</p>
- * 
- * <p>If you issue a command for travel(1000) and then issue a command travel(-500) before
- * it completes the travel(1000) movement, it will call stop, properly inform movement listeners that 
- * the forward movement was halted, and then start moving backward 500 units. This makes movements from the SteeringPilot
- * leak-proof and incorruptible.</p> 
- *
- * <p>Note: A DifferentialPilot robot can simulate a SteeringPilot robot by calling {@link DifferentialPilot#setMinRadius(double)}
- * and setting the value to something greater than zero (example: 15 cm).</p>
- * 
- * @see DifferentialPilot#setMinRadius(double)
- * @author BB
- *
- */
-public class SteeringPilot implements ArcMoveController, RegulatedMotorListener {
+    final RegulatedMotor driveMotor;
+    final RegulatedMotor steerMotor;
+    final double wheelDiameter;
+    final double turnRadius;
+    final List<MovementListener> movementListeners = new ArrayList<>();
 
-	private RegulatedMotor driveMotor;
-	private RegulatedMotor steeringMotor;
-	private double minTurnRadius;
-	private double driveWheelDiameter;
-	
-	private boolean isMoving;
-	private int oldTacho;
-	
-	/**
-	 * Rotate motor to this tacho value in order to achieve minimum left hand turn. 
-	 */
-	private int minLeft;
-	
-	/**
-	 * Rotate motor to this tacho value in order to achieve minimum right hand turn. 
-	 */
-	private int minRight;
-	
-	/**
-	 * Indicates the type of movement (arc, travel) that vehicle is engaged in.
-	 */
-	private Move moveEvent = null;
-	
-	// TODO: Possibly will need to allow multiple listeners
-	private MoveListener listener = null;
-	
-	/**
-	 * <p>Creates an instance of the SteeringPilot. The drive wheel measurements are written on the side of the LEGO tire, such
-	 * as 56 x 26 (= 56 mm or 5.6 centimeters).</p>
-	 * 
-	 * The accuracy of this class is dependent on physical factors:
-	 * <li> the surface the vehicle is driving on (hard smooth surfaces are much better than carpet)
-	 * <li> the accuracy of the steering vehicle (backlash in the steering mechanism will cause turn-angle accuracy problems)
-	 * <li> the ability of the steering robot to drive straight (if you see your robot trying to drive straight and it is driving
-	 * a curve instead, accuracy will be thrown off significantly) 
-	 * <li> When using SteeringPilot with ArcPoseController, the starting position of the robot is also important. Is it truly
-	 * lined up with the x axis? Are your destination targets on the floor accurately measured? 
-	 * 
-	 * <p>Note: If your drive motor is geared for faster movement, you must multiply the wheel size by the 
-	 * gear ratio. e.g. If gear ratio is 3:1, multiply wheel diameter by 3.  If your drive motor is geared for
-	 * slower movement, divide wheel size by gear ratio.</p> 
-	 * 	 * 
-	 * @param driveWheelDiameter The diameter of the wheel(s) used to propel the vehicle.
-	 * @param driveMotor The motor used to propel the vehicle, such as Motor.B
-	 * @param steeringMotor The motor used to steer the steering wheels, such as Motor.C
-	 * @param minTurnRadius The smallest turning radius the vehicle can turn. e.g. 41 centimeters
-	 * @param leftTurnTacho The tachometer the steering motor must turn to in order to turn left with the minimum turn radius.
-	 * @param rightTurnTacho The tachometer the steering motor must turn to in order to turn right with the minimum turn radius.
-	 */
-	public SteeringPilot(double driveWheelDiameter, RegulatedMotor driveMotor,
-			RegulatedMotor steeringMotor, double minTurnRadius, int leftTurnTacho, int rightTurnTacho) {
-		this.driveMotor = driveMotor;
-		this.steeringMotor = steeringMotor;
-		this.driveMotor.addListener(this);
-		this.driveWheelDiameter = driveWheelDiameter;
-		this.minTurnRadius = minTurnRadius;
-		this.minLeft = leftTurnTacho;
-		this.minRight = rightTurnTacho;
-		
-		this.isMoving = false;	
-	}
-	
-	/**
-	 * <p>This method calibrates the steering mechanism by turning the wheels all the way to the right and
-	 * left until they encounter resistance and recording the tachometer values. These values determine the
-	 * outer bounds of steering. The center steering value is the average of the two. NOTE: This method only
-	 * works with steering robots that are symmetrical (same maximum steering threshold left and right). </p> 
-	 *   
-	 *   TODO: Should be able to get steering parity right from this class! No need to fish for boolean.
-	 * <p>When you run the method, if you notice the wheels turn left first, then right, it means you need
-	 * to set the reverse parameter to true for proper calibration. NOTE: The next time you run the calibrate
-	 * method it will still turn left first, but...  </p>
-	 */
-	public void calibrateSteering() {
-		
-		// TODO: Not really necessary to check for stall. Could just rotate for about 2 seconds and take a tacho reading. 
-		// This would help with RemoteMotor and remote SteeringPilot, which doesn't implement isStalled().
-		
-		steeringMotor.setSpeed(100);
-		//steeringMotor.setStallThreshold(10, 100);
-				
-		steeringMotor.forward();
+    int minRight, minLeft;
 
-		long timestamp;
+    public void addMovementListener(final MovementListener listener) {
+        movementListeners.add(listener);
+    }
 
-		timestamp = System.currentTimeMillis();
-		while (System.currentTimeMillis() - timestamp < 2000) {
-			Thread.yield();
-		}
+    public void move(final Directions direction) {
+        final var startTimestamp = System.nanoTime();
+        if (steerMotor != null && driveMotor != null) {
+            steer(direction);
+            driveMotor.rotate(360);
+        }
+        final var endTimestamp = System.nanoTime();
 
-		int r = steeringMotor.getTachoCount();
-		
-		steeringMotor.backward();
-		timestamp = System.currentTimeMillis();
-		while (System.currentTimeMillis() - timestamp < 2000) {
-			Thread.yield();
-		}
-		int l = steeringMotor.getTachoCount();
-					
-		int center = (l + r) / 2; // TODO: Maybe reset tacho to zero? Seems like there is no center variable.
-		
-		/*
-		System.out.println("Left " + l);
-		System.out.println("Right " + r);
-		System.out.println("Center " + center);
-		*/
-		
-		// Adjust values so they are still meaningful when tachocount is reset to zero below (0 = center):
-		r -= center;
-		l -= center;
-		/* System.out.println("LEFT " + l);
-		System.out.println("RIGHT " + r); */
-				
-		minRight = (int) ((double) r / 2.5);
-		minLeft = (int) ((double) l / 2.5);
-		
-		// TODO: I'm not sure if reverse steering works yet with actual SteeringPilot class. 
-		
-		/* TODO: I'm not totally satisfied with this final step in calibration. It invariably doesn't quite rotate
-		 * to the center value (off by one) and then all subsequent center positions are off by one degree. Would
-		 * rather store the center/left/right values and use them, but this class wasn't programmed that way with 
-		 * calibration and values in mind.  
-		 */
-		steeringMotor.rotateTo(center);
-		// System.out.println("CENTER:" + steeringMotor.getTachoCount());
-		steeringMotor.resetTachoCount();
-		//steeringMotor.flt();
-		//steeringMotor.setStallThreshold(50,1000); // Reset to defaults.
-		steeringMotor.setSpeed(250);
-	}
-	
-	/**
-	 * In practice, a robot might steer tighter with one turn than the other.
-	 * Currently returns minimum steering radius for the least tight turn direction.  
-	 * @return minimum turning radius, in centimeters
-	 */
-	public double getMinRadius() {
-		return minTurnRadius;
-	}
-	
-	// NOTE: Currently the steer method locks this SteeringPilot into one proprietary LEGO robot design.
-	// Tach values for left and right should be in constructor.
-	// Should be able to use this class with a variety of steering robots.
-	// NOTE: Doesn't actually have variable turn radius. Just minTurnRadius for now.
-	// Note: Perhaps it should return the actual radius/arc it achieves, in case can't do the one it is called to do.
-	// Although this might really screw things up for the algorithm. Shouldn't necessarily attempt arc it wasn't asked to perform.
-	// Perhaps it should check if radius is < minRadius, then throw exception or return failed if it can't do it.
-	/**
-	 * Positive radius = left turn
-	 * Negative radius = right turn
-	 */
-	private double steer(double radius) {
-		if(radius == Double.POSITIVE_INFINITY) {
-			this.steeringMotor.rotateTo(0);
-			return Double.POSITIVE_INFINITY;
-		} else if(radius > 0) {
-			this.steeringMotor.rotateTo(minLeft);
-			return getMinRadius();
-		} else { // if(radius <= 0)
-			this.steeringMotor.rotateTo(minRight);
-			return -getMinRadius();
-		}
-	}
-	
-	public void arcForward(double turnRadius) {
-		 arc(turnRadius, Double.POSITIVE_INFINITY, true);
-	}
-	
-	public void arcBackward(double turnRadius) {
-		arc(turnRadius, Double.NEGATIVE_INFINITY, true);
-	}
-	
-	public void arc(double turnRadius, double arcAngle) throws IllegalArgumentException {
-		if(turnRadius == 0) throw new IllegalArgumentException("SteeringPilot can't do zero radius turns."); // Can't turn in one spot
-		 arc(turnRadius, arcAngle, false);
-	}
+        // distanza percorsa, pari al diametro della ruota (ha ruotato esattamente di 360 gradi)
+        final var length = (wheelDiameter / 2) * Math.PI * 2;
 
-	public void arc(double turnRadius, double arcAngle, boolean immediateReturn) {
-		double distance = Move.convertAngleToDistance((float)arcAngle, (float)turnRadius);
-		 travelArc(turnRadius, (float)distance, immediateReturn);
-	}
+        final double[] point;
+        double angle;
+        final double perpendicularAngle;
+        if (direction != Directions.STRAIGHT) {
+            // la lunghezza della circonferenza data dal raggio di sterzata
+            final var circle = turnRadius * 2 * Math.PI;
+            // l'angolo spazzato su questa circonferenza dal robot, ossia l'angolo sotteso dall'arco di circonferenza di lunghezza 'length'
+            angle = 360 * length / circle;
+            // la nuova posizione del robot assumendo che parta da (0, 0)
+            point = new double[] {turnRadius * Math.cos(Math.toRadians(angle)), turnRadius * Math.sin(Math.toRadians(angle))};
+            point[0] -= turnRadius;
+            if (direction == Directions.RIGHT) {
+                point[0] = -point[0];
+            }
+            if (direction == Directions.RIGHT) {
+                angle = -angle;
+            }
+            // il nuovo orientamento del robot, assumendo che in precedenza fosse 90 gradi, ossia parallelo all'asse Y
+            perpendicularAngle = (angle + Math.toDegrees(Math.PI / 2)) % 360.0;
+        } else {
+            point = new double[] {0, length};
+            angle = 90.0;
+            perpendicularAngle = 180.0;
+        }
 
-	public void setMinRadius(double minTurnRadius) {
-		this.minTurnRadius = minTurnRadius;
-	}
+        final var elapsedTime = endTimestamp - startTimestamp;
+        for (MovementListener l : movementListeners) {
+            final var previousMovement = l.getPreviousMovement();
+            double newAngle = Double.NaN;
+            if (previousMovement != null) {
+                final var previousAngle = previousMovement.position.orientation;
+                final var rotation = Math.toRadians(previousAngle + angle);
+                newAngle = Math.toDegrees(rotation);
+                final var affineTransform = new AffineTransform();
+                affineTransform.translate(previousMovement.position.x, previousMovement.position.y);
+                affineTransform.rotate(rotation);
+                affineTransform.transform(point, 0, point, 0, 1);
+            }
+            final var movement = new Movement(direction, elapsedTime, length, new Position(point[0], point[1], !Double.isNaN(newAngle) ? newAngle : perpendicularAngle));
+            l.movementEnded(movement);
+        }
+    }
 
-	public void travelArc(double turnRadius, double distance) {
-		travelArc(turnRadius, distance, false);
-	}
+    public void calibrateSteering() {
 
-	// TODO: Currently the DifferentialPilot goes forward if radius is negative. This goes backwards.
-	public void travelArc(double turnRadius, double distance, boolean immediateReturn) throws IllegalArgumentException {
-		
-		// Hack here because JVM causes extra decimals for Math.abs function?
-		double diff = this.getMinRadius() - Math.abs(turnRadius); 
-		if(diff > 0.1) throw new IllegalArgumentException("Turn radius can't be less than " + this.getMinRadius());
-		
-		// 1. Check if moving. If so, call stop.
-		if(isMoving) stop();
-		
-		// 2. Change wheel steering:
-		double actualRadius = steer(turnRadius);
-		
-		// 3 Create new Move object:
-		double angle = Move.convertDistanceToAngle((float)distance, (float)actualRadius);
-		moveEvent = new Move((float)distance, (float)angle, true);
-		
-		
-		// TODO: This if() block is a temporary kludge due to Motor.rotate() bug with Integer.MIN_VALUE:
-		// Remove this if Roger changes Motor.rotate().
-		if((distance == Double.NEGATIVE_INFINITY) | (distance == Double.POSITIVE_INFINITY)) {
-			//driveMotor.backward();
-			//return moveEvent;
-		}
-		
-		// 4. Start moving
-		// Convert Float infinity to Integer maximum value.
-		int tachos = (int)((distance * 360) / (driveWheelDiameter * Math.PI));
-		driveMotor.rotate(tachos, immediateReturn);
-		
-		//return moveEvent;
-	}
-	
-	public void backward() {
-		travel(Double.NEGATIVE_INFINITY, true);
-	}
+        steerMotor.setSpeed(100);
+        steerMotor.forward();
 
-	public void forward() {
-		travel(Double.POSITIVE_INFINITY, true);
-	}
+        long timestamp;
+        timestamp = System.currentTimeMillis();
+        while (System.currentTimeMillis() - timestamp < 2000) {
+            Thread.yield();
+        }
 
-	public double getMaxLinearSpeed() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
+        int r = steerMotor.getTachoCount();
 
-	// TODO: This method should indicate it is not live speed. Such as getSpeedSetting(), setSpeedSetting()
-	// TODO: Many methods in MoveController have no documentation and unit specification, incl. this.
-	public double getLinearSpeed() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
+        steerMotor.backward();
+        timestamp = System.currentTimeMillis();
+        while (System.currentTimeMillis() - timestamp < 2000) {
+            Thread.yield();
+        }
+        int l = steerMotor.getTachoCount();
 
-	public float getMovementIncrement() {
-		// TODO Auto-generated method stub
-		return 0;
-	}
+        int center = (l + r) / 2;
 
-	public boolean isMoving() {
-		return isMoving;
-	}
+        // Adjust values so they are still meaningful when tachocount is reset to zero below (0 = center):
+        r -= center;
+        l -= center;
 
-	public void setLinearSpeed(double speed) {
-		// TODO This should set the motor speed for the drive motor, perhaps also calculates based on wheel diameter?
-		
-	}
+        minRight = (int) ((double) r / 2.5);
+        minLeft = (int) ((double) l / 2.5);
 
-	public void stop() {
-		// 1. Check if moving. If not, return?
-//		if(!isMoving()) return false; // Should return no movement? Or moveEvent? Null might be appropriate.
-		
-		// 2. Get instance of moveEvent here. Used to check when rotationStopped() completes
-		Move oldMove = moveEvent;
-		
-		// 3. Stop motor
-		driveMotor.stop();
-		
-		// 4. Compare oldMove with moveEvent, only proceed when it changes
-		while(oldMove == moveEvent) {Thread.yield();}
-		
-		// 5. Return newly created moveEvent
-		//return moveEvent;
-	}
+        steerMotor.rotateTo(center);
+        steerMotor.resetTachoCount();
+        steerMotor.setSpeed(250);
+    }
 
-	public void travel(double distance) {
-		 travel(distance, false);
-	}
+    private void steer(Directions direction) {
+        switch (direction) {
+            case LEFT:
+                steerMotor.rotateTo(minLeft);
+                break;
+            case RIGHT:
+                steerMotor.rotateTo(minRight);
+                break;
+            case STRAIGHT:
+                steerMotor.rotateTo(0);
+                break;
+        }
+    }
 
-	public void travel(double distance, boolean immediateReturn) {
-		travelArc(Double.POSITIVE_INFINITY, distance, immediateReturn);
-	}
+    @Data
+    public static class Movement {
 
-	public void addMoveListener(MoveListener listener) {
-		this.listener = listener;		
-	}
+        final Directions direction;
+        final double length;
+        final double elapsedTime;
+        final Position position;
 
-	public Move getMovement() {
-		// TODO This is probably supposed to provide the movement that has occurred since starting? (No Javadocs for this method makes it hard to figure out how to implement this method.)
-		return null;
-	}
+    }
 
-	public void rotationStarted(RegulatedMotor motor, int tachoCount, boolean stall, long timeStamp) {
-		isMoving = true;
-		oldTacho = tachoCount;
-		
-		// Notify MoveListener
-		if(listener != null) {
-			listener.moveStarted(moveEvent, this);
-		}
-	}
+    @Data
+    public static class Position {
+        final double x;
+        final double y;
+        final double orientation;
+    }
 
-	public void rotationStopped(RegulatedMotor motor, int tachoCount,boolean stall, long timeStamp) {
-		isMoving = false;
-		int tachoTotal = tachoCount - oldTacho ;
-		float distance = (float)((tachoTotal/360f) * Math.PI * driveWheelDiameter);
-		
-		float angle = Move.convertDistanceToAngle(distance, moveEvent.getArcRadius()); 
-		
-		moveEvent = new Move(distance ,angle, isMoving);
-		
-		// Notify MoveListener
-		if(listener != null) {
-			listener.moveStopped(moveEvent, this);
-		}
-		
-	}
+    public interface MovementListener {
 
-  @Override
-  public void setLinearAcceleration(double acceleration) {
-    // TODO: Added for interface, not in effect
-    
-  }
+        Movement getPreviousMovement();
 
-  @Override
-  public double getLinearAcceleration() {
-    // TODO: Added for interface, not in effect
-    return 0;
-  }
+        void movementEnded(final Movement movement);
+
+    }
+
+    public enum Directions {
+        STRAIGHT, LEFT, RIGHT
+    }
+
 }

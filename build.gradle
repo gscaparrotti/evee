@@ -33,6 +33,11 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.36'
     testCompileOnly 'org.projectlombok:lombok:1.18.36'
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.2.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.2.0")
+    testRuntime("org.junit.platform:junit-platform-console:1.2.0")
+
 }
 
 compileJava.options.encoding = 'UTF-8'
@@ -56,6 +61,10 @@ task fatJar {
     }
 }
 fatJar.dependsOn shadowJar
+
+tasks.test {
+    useJUnitPlatform()
+}
 
 apply from: './config.gradle'
 apply from: './gradle/deploy.gradle'

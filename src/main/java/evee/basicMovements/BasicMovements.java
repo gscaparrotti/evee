@@ -3,11 +3,11 @@ package evee.basicMovements;
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
 import evee.custom.SteeringPilot;
+import evee.custom.SteeringPilot.Directions;
+import evee.custom.SteeringPilot.Movement;
+import evee.custom.SteeringPilot.MovementListener;
 import lejos.hardware.port.MotorPort;
 import lejos.robotics.RegulatedMotor;
-import lejos.robotics.localization.OdometryPoseProvider;
-import lejos.robotics.navigation.Move;
-import lejos.robotics.navigation.MoveProvider;
 import lejos.robotics.subsumption.Behavior;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -32,7 +32,7 @@ public class BasicMovements implements Behavior {
     private RegulatedMotor turn;
 
     private SteeringPilot steeringPilot;
-    private OdometryPoseProvider poseProvider;
+    private MovementListener movementListener;
 
     @SneakyThrows
     public BasicMovements() {
@@ -60,19 +60,18 @@ public class BasicMovements implements Behavior {
         this.motorRight = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
         this.turn = new EV3MediumRegulatedMotor(MotorPort.C);
         LOGGER.debug("Configuring motors");
-        //RegulatedMotor driveMotor = new CombinedMotor(motorLeft, motorRight);
-        this.steeringPilot = new SteeringPilot(42.0, motorRight, turn, TURN_RADIUS, -1, -1);
+        this.steeringPilot = new SteeringPilot(motorRight, turn, 42.0, 155.0);;
         this.steeringPilot.calibrateSteering();
-        this.poseProvider = new MyOdometryPoseProvider(this.steeringPilot);
-        //this.steeringPilot.arcForward(300.0);
+        this.movementListener = new BasicMovementListener();
+        this.steeringPilot.addMovementListener(this.movementListener);
     }
 
     public void setSpeedForBothMotors(final int speed) {
-        this.steeringPilot.setLinearSpeed(speed);
+        //this.steeringPilot.setLinearSpeed(speed);
     }
 
     public void stop() {
-        this.steeringPilot.stop();
+        //this.steeringPilot.stop();
     }
 
     public void travel(final int angle) {
@@ -80,22 +79,31 @@ public class BasicMovements implements Behavior {
     }
 
     public void travel(final int angle, final double distance) {
-        var actualAngle = angle != 0.0 ? angle * TURN_RADIUS : Double.POSITIVE_INFINITY;
-        //this.steeringPilot.stop();
-        this.steeringPilot.travelArc(actualAngle, distance, false);
+        final Directions direction;
+        if (angle < 0) {
+            direction = Directions.LEFT;
+        } else if (angle > 0) {
+            direction = Directions.RIGHT;
+        } else {
+            direction = Directions.STRAIGHT;
+        }
+        this.steeringPilot.move(direction);
     }
 
-    private static class MyOdometryPoseProvider extends OdometryPoseProvider {
+    private static class BasicMovementListener implements MovementListener {
 
-        public MyOdometryPoseProvider(SteeringPilot steeringPilot) {
-            super(steeringPilot);
+        private Movement previousMovement;
+
+        @Override
+        public Movement getPreviousMovement() {
+            return this.previousMovement;
         }
 
         @SneakyThrows
         @Override
-        public void moveStopped(Move move, MoveProvider mp) {
-            super.moveStopped(move, mp);
-            final var pose = this.getPose();
+        public void movementEnded(Movement movement) {
+            this.previousMovement = movement;
+            final var pose = movement.getPosition();
             FileUtils.write(new File("output.txt"), System.currentTimeMillis() + "," + pose.getX() + "," + pose.getY() + "\n", true);
         }
     }
