@@ -1,6 +1,5 @@
 package evee.test;
 
-import evee.basicMovements.BasicMovements;
 import evee.custom.SteeringPilot;
 import org.junit.jupiter.api.Test;
 
@@ -21,11 +20,14 @@ public class PositionTest {
             @Override
             public void movementEnded(SteeringPilot.Movement movement) {
                 this.movement = movement;
-                System.out.println(movement.getPosition());
+                final var pose = movement.getOrientedPosition();
+                System.out.println(System.currentTimeMillis() + "," + pose.getX() + "," + pose.getY());
             }
         });
-        steeringPilot.move(SteeringPilot.Directions.LEFT);
-        steeringPilot.move(SteeringPilot.Directions.LEFT);
-    }
+        steeringPilot.move(SteeringPilot.Direction.RIGHT);
+        steeringPilot.move(SteeringPilot.Direction.RIGHT);
+        steeringPilot.move(SteeringPilot.Direction.LEFT);
+        steeringPilot.move(SteeringPilot.Direction.LEFT);
 
+    }
 }

@@ -3,7 +3,7 @@ package evee.basicMovements;
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
 import evee.custom.SteeringPilot;
-import evee.custom.SteeringPilot.Directions;
+import evee.custom.SteeringPilot.Direction;
 import evee.custom.SteeringPilot.Movement;
 import evee.custom.SteeringPilot.MovementListener;
 import lejos.hardware.port.MotorPort;
@@ -79,13 +79,13 @@ public class BasicMovements implements Behavior {
     }
 
     public void travel(final int angle, final double distance) {
-        final Directions direction;
+        final Direction direction;
         if (angle < 0) {
-            direction = Directions.LEFT;
+            direction = Direction.LEFT;
         } else if (angle > 0) {
-            direction = Directions.RIGHT;
+            direction = Direction.RIGHT;
         } else {
-            direction = Directions.STRAIGHT;
+            direction = Direction.STRAIGHT;
         }
         this.steeringPilot.move(direction);
     }
@@ -103,7 +103,7 @@ public class BasicMovements implements Behavior {
         @Override
         public void movementEnded(Movement movement) {
             this.previousMovement = movement;
-            final var pose = movement.getPosition();
+            final var pose = movement.getOrientedPosition();
             FileUtils.write(new File("output.txt"), System.currentTimeMillis() + "," + pose.getX() + "," + pose.getY() + "\n", true);
         }
     }
