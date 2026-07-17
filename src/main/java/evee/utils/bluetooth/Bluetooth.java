@@ -43,7 +43,6 @@ public class Bluetooth implements Behavior {
             switch (command) {
                 case START:
                     basicMovements.travel(0);
-                    basicMovements.stop();
                     break;
                 case STOP:
                     break;

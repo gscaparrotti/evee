@@ -16,9 +16,7 @@ import static evee.utils.Utils.*;
 @Getter
 public class BasicMovements implements Behavior {
 
-    public static final int TURN_MOTOR_SPEED = 400;
-    public static final int STRAIGHT_MOTOR_SPEED = 500;
-    public static final double TURN_RADIUS = 170.0;
+    public static final double TURN_RADIUS = 168.0;
     public static final double WHEEL_DIAMETER = 43.2;
 
     volatile boolean started = false;
@@ -58,16 +56,8 @@ public class BasicMovements implements Behavior {
         this.steeringPilot.addMovementListener(this.movementListener);
     }
 
-    public void setSpeedForBothMotors(final int speed) {
-        //this.steeringPilot.setLinearSpeed(speed);
-    }
-
-    public void stop() {
-        //this.steeringPilot.stop();
-    }
-
     public void travel(final int angle) {
-        this.travel(angle, 80.0);
+        this.travel(angle, 100.0);
     }
 
     public void travel(final int angle, final double distance) {
@@ -79,7 +69,10 @@ public class BasicMovements implements Behavior {
         } else {
             direction = Direction.STRAIGHT;
         }
+        final int iterations = (int) (distance / 100);
         final var bearing = distance < 0 ? Bearing.BACKWARD : Bearing.FORWARD;
-        this.steeringPilot.move(direction, bearing);
+        for (int i = 0; i < Math.max(iterations, 1); i++) {
+            this.steeringPilot.move(direction, bearing);
+        }
     }
 }

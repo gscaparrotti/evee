@@ -10,8 +10,6 @@ import lejos.hardware.sensor.SensorMode;
 import lejos.robotics.subsumption.Behavior;
 import org.apache.commons.collections4.queue.CircularFifoQueue;
 
-import static evee.basicMovements.BasicMovements.STRAIGHT_MOTOR_SPEED;
-import static evee.basicMovements.BasicMovements.TURN_MOTOR_SPEED;
 import static evee.utils.Notifications.Beep.*;
 import static evee.utils.Notifications.beep;
 import static evee.utils.Utils.LOGGER;
@@ -109,7 +107,6 @@ public class ObstaclesAvoider implements Behavior {
     private void moveAroundObstacle(final boolean invertedDirection) {
         try {
             basicMovements.travel(0, -200);
-            basicMovements.setSpeedForBothMotors(TURN_MOTOR_SPEED);
             LOGGER.debug("Rotation started");
             LOGGER.debug("First part of rotation");
             final var direction = RANDOM.nextInt(100) > 20;
@@ -128,7 +125,6 @@ public class ObstaclesAvoider implements Behavior {
             LOGGER.debug("Second part of rotation");
             //basicMovements.travel(0);
             LOGGER.debug("Rotation completed");
-            basicMovements.setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
         }
     }
 
