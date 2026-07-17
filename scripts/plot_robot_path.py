@@ -57,12 +57,52 @@ def parse_log(path):
     return timestamps, xs, ys, obstacle_xs, obstacle_ys
 
 
+def catmull_rom_path(xs, ys, values, samples_per_segment=15):
+    """Interpolate a smooth Catmull-Rom spline through (xs, ys), so consecutive logged
+    positions are joined by a curve instead of a straight segment - closer to how the
+    robot actually moves when steering left or right instead of teleporting in a
+    straight hop between two points. `values` (e.g. elapsed time) is linearly
+    interpolated alongside the curve so callers can still color it per-point.
+
+    Falls back to the original points when there aren't enough of them to curve.
+    """
+    n = len(xs)
+    if n < 3:
+        return list(xs), list(ys), list(values)
+
+    pts = list(zip(xs, ys))
+    extended_pts = [pts[0]] + pts + [pts[-1]]
+    extended_values = [values[0]] + list(values) + [values[-1]]
+
+    curve_xs, curve_ys, curve_values = [], [], []
+    segment_count = len(extended_pts) - 3
+    for i in range(1, segment_count + 1):
+        p0, p1, p2, p3 = extended_pts[i - 1], extended_pts[i], extended_pts[i + 1], extended_pts[i + 2]
+        v0, v1 = extended_values[i], extended_values[i + 1]
+        is_last_segment = i == segment_count
+        steps = samples_per_segment + (1 if is_last_segment else 0)
+        for step in range(steps):
+            t = step / samples_per_segment
+            t2, t3 = t * t, t * t * t
+            x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t +
+                       (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 +
+                       (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3)
+            y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t +
+                       (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 +
+                       (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
+            curve_xs.append(x)
+            curve_ys.append(y)
+            curve_values.append(v0 + (v1 - v0) * t)
+    return curve_xs, curve_ys, curve_values
+
+
 def plot_path(timestamps, xs, ys, obstacle_xs, obstacle_ys, title):
     fig, ax = plt.subplots()
 
-    points = list(zip(xs, ys))
-    segments = [[points[i], points[i + 1]] for i in range(len(points) - 1)]
     elapsed_seconds = [(t - timestamps[0]) / 1000 for t in timestamps]
+    curve_xs, curve_ys, curve_elapsed = catmull_rom_path(xs, ys, elapsed_seconds)
+    curve_points = list(zip(curve_xs, curve_ys))
+    segments = [[curve_points[i], curve_points[i + 1]] for i in range(len(curve_points) - 1)]
 
     # BasicMovementListener only logs a position once the first Movement completes, so
     # the very first move (from the robot's true starting pose at the origin) is never
@@ -72,7 +112,7 @@ def plot_path(timestamps, xs, ys, obstacle_xs, obstacle_ys, title):
 
     if segments:
         line_collection = LineCollection(segments, cmap="viridis")
-        line_collection.set_array(elapsed_seconds[:-1])
+        line_collection.set_array(curve_elapsed[:-1])
         ax.add_collection(line_collection)
         fig.colorbar(line_collection, ax=ax, label="Time since start (s)")
 
