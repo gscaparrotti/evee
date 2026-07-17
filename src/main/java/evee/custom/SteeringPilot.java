@@ -115,23 +115,30 @@ public class SteeringPilot {
 
         final var steeringAngleRad = Math.toRadians(direction.steeringAngle);
         if (Math.abs(steeringAngleRad) < EPS) {
-            // Moto rettilineo
+            // Straight-line motion
             x += distance * Math.cos(heading);
             y += distance * Math.sin(heading);
         } else {
-            // Raggio di curvatura: turnRadius è il raggio di sterzata calibrato (costante,
-            // essendoci un solo motore di sterzo con posizioni fisse), il segno segue la
-            // direzione della sterzata.
+            // Curvature radius: turnRadius is the calibrated steering radius (constant,
+            // since there is only one steering motor with fixed positions); the sign
+            // follows the steering direction.
             double R = Math.signum(steeringAngleRad) * turnRadius;
 
-            // Variazione di heading
+            // Heading change: arc-angle relation s = R * dTheta on a circle of radius R,
+            // so dTheta = s / R (s = distance).
             double dTheta = distance / R;
 
-            // Centro di curvatura istantaneo (ICC)
+            // Instantaneous center of curvature (ICC): it lies at distance R from the
+            // current position, along the normal to the current heading, i.e.
+            // ICC = (x, y) + R * (-sin(heading), cos(heading)).
             double iccX = x - R * Math.sin(heading);
             double iccY = y + R * Math.cos(heading);
 
-            // Nuove coordinate
+            // New coordinates: (x, y) is the point on the circle centered at ICC with
+            // radius R corresponding to angle heading, i.e. (x,y) = ICC + R *
+            // (sin(heading), -cos(heading)) (verifiable by substituting the two lines
+            // above). Evaluating the same parametrization at heading + dTheta gives the
+            // point rotated by dTheta around the ICC, i.e. the new position after the arc.
             x = iccX + R * Math.sin(heading + dTheta);
             y = iccY - R * Math.cos(heading + dTheta);
             heading = normalizeAngle(heading + dTheta);
@@ -145,7 +152,7 @@ public class SteeringPilot {
 
     }
 
-    /** Normalizza un angolo nell'intervallo (-π, π]. */
+    /** Normalizes an angle into the range (-π, π]. */
     private static double normalizeAngle(double angle) {
         while (angle >  Math.PI) angle -= 2 * Math.PI;
         while (angle <= -Math.PI) angle += 2 * Math.PI;

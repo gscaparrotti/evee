@@ -12,14 +12,14 @@ public class PositionTest {
     private static final double TURN_RADIUS = 155.0;
     private static final double DELTA = 1e-6;
 
-    /** Distanza percorsa da una rotazione completa della ruota motrice. */
+    /** Distance travelled by one full rotation of the drive wheel. */
     private static final double STEP_DISTANCE = (WHEEL_DIAMETER / 2) * Math.PI * 2;
 
     private static SteeringPilot newPilot() {
         return new SteeringPilot(null, null, WHEEL_DIAMETER, TURN_RADIUS);
     }
 
-    /** Listener di comodo che tiene traccia dell'ultima posizione registrata. */
+    /** Convenience listener that keeps track of the last recorded position. */
     private static class RecordingListener implements SteeringPilot.MovementListener {
         SteeringPilot.Movement movement;
 
@@ -88,8 +88,9 @@ public class PositionTest {
         final var forwardPose = forwardListener.pose();
         final var backwardPose = backwardListener.pose();
 
-        // Percorrendo la distanza in verso opposto, dTheta cambia segno: x e heading si
-        // invertono, mentre y (funzione pari di dTheta rispetto all'ICC comune) resta invariata.
+        // Travelling the distance in the opposite direction flips the sign of dTheta:
+        // x and heading are negated, while y (an even function of dTheta around the
+        // shared ICC) stays unchanged.
         assertEquals(forwardPose.getX(), -backwardPose.getX(), DELTA);
         assertEquals(forwardPose.getY(), backwardPose.getY(), DELTA);
         assertEquals(forwardPose.getOrientation(), -backwardPose.getOrientation(), DELTA);
@@ -105,7 +106,7 @@ public class PositionTest {
 
         final var expectedR = TURN_RADIUS;
         final var expectedDTheta = STEP_DISTANCE / expectedR;
-        // Partendo da (0,0) con heading 0, l'ICC è (0, expectedR):
+        // Starting from (0,0) with heading 0, the ICC is (0, expectedR):
         // x = expectedR * sin(dTheta), y = expectedR * (1 - cos(dTheta))
         final var expectedX = expectedR * Math.sin(expectedDTheta);
         final var expectedY = expectedR * (1 - Math.cos(expectedDTheta));
@@ -131,8 +132,8 @@ public class PositionTest {
         final var rightPose = rightListener.pose();
         final var leftPose = leftListener.pose();
 
-        // Sterzando allo stesso angolo ma in direzioni opposte, il robot deve percorrere
-        // traiettorie speculari rispetto all'asse x (stessa x, y e heading opposti).
+        // Steering at the same angle but in opposite directions, the robot must follow
+        // mirror-image trajectories about the x axis (same x, opposite y and heading).
         assertEquals(rightPose.getX(), leftPose.getX(), DELTA);
         assertEquals(rightPose.getY(), -leftPose.getY(), DELTA);
         assertEquals(rightPose.getOrientation(), -leftPose.getOrientation(), DELTA);
@@ -156,9 +157,10 @@ public class PositionTest {
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
 
-        // Centro istantaneo di curvatura, costante per sterzate consecutive nella stessa
-        // direzione (heading iniziale = 0).
+        // Instantaneous center of curvature, constant for consecutive turns in the same
+        // direction (starting heading = 0).
         final var iccX = 0.0;
+        //noinspection UnnecessaryLocalVariable
         final var iccY = TURN_RADIUS;
 
         for (int i = 0; i < 8; i++) {
@@ -166,16 +168,17 @@ public class PositionTest {
             final var pose = listener.pose();
             final var distanceFromIcc = Math.hypot(pose.getX() - iccX, pose.getY() - iccY);
             assertEquals(TURN_RADIUS, distanceFromIcc, DELTA,
-                    "La posizione deve restare sulla stessa circonferenza per sterzate consecutive nella stessa direzione");
+                    "The position must stay on the same circle for consecutive turns in the same direction");
         }
     }
 
     @Test
     public void turnRadiusMatchesTheCalibratedConstant() {
-        // Non ricalcola R con la stessa formula usata internamente da logMovement:
-        // ricava il raggio effettivo dai soli valori misurabili (arco percorso e
-        // variazione di heading riportata) e lo confronta con la costante calibrata
-        // turnRadius passata al costruttore, che è il raggio di sterzata reale.
+        // Does not recompute R with the same formula used internally by logMovement:
+        // it derives the effective radius purely from measurable values (the arc
+        // travelled and the reported heading change) and compares it against the
+        // calibrated turnRadius constant passed to the constructor, which is the
+        // real steering radius.
         final var steeringPilot = newPilot();
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
@@ -186,7 +189,7 @@ public class PositionTest {
         final var effectiveRadius = Math.abs(STEP_DISTANCE / dTheta);
 
         assertEquals(TURN_RADIUS, effectiveRadius, DELTA,
-                "Il raggio di sterzata calcolato dovrebbe corrispondere alla costante calibrata turnRadius");
+                "The computed steering radius should match the calibrated turnRadius constant");
     }
 
     @Test
@@ -205,10 +208,10 @@ public class PositionTest {
         final var pose = listener.pose();
         final var distanceFromStart = Math.hypot(pose.getX(), pose.getY());
 
-        // Il numero di sterzate scelto è quello che, per il raggio calibrato, copre
-        // il giro più vicino a 360°: il robot deve quindi ritrovarsi vicino al punto
-        // di partenza, ben all'interno del raggio di curvatura.
+        // The chosen number of turns is the one that, for the calibrated radius, covers
+        // the loop closest to 360°: the robot should therefore end up near its starting
+        // point, well within the turning radius.
         assertTrue(distanceFromStart < TURN_RADIUS,
-                "Dopo circa un giro completo il robot dovrebbe trovarsi vicino al punto di partenza");
+                "After roughly one full loop the robot should end up near its starting point");
     }
 }
