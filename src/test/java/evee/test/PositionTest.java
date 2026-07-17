@@ -33,6 +33,10 @@ public class PositionTest {
             this.movement = movement;
         }
 
+        @Override
+        public void markObstacleFound() {
+        }
+
         SteeringPilot.OrientedPosition pose() {
             return movement.getOrientedPosition();
         }
@@ -44,9 +48,9 @@ public class PositionTest {
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
 
-        steeringPilot.move(SteeringPilot.Direction.STRAIGHT);
-        steeringPilot.move(SteeringPilot.Direction.STRAIGHT);
-        steeringPilot.move(SteeringPilot.Direction.STRAIGHT);
+        steeringPilot.move(SteeringPilot.Direction.STRAIGHT, SteeringPilot.Bearing.FORWARD);
+        steeringPilot.move(SteeringPilot.Direction.STRAIGHT, SteeringPilot.Bearing.FORWARD);
+        steeringPilot.move(SteeringPilot.Direction.STRAIGHT, SteeringPilot.Bearing.FORWARD);
 
         final var pose = listener.pose();
         assertEquals(3 * STEP_DISTANCE, pose.getX(), DELTA);
@@ -55,12 +59,49 @@ public class PositionTest {
     }
 
     @Test
+    public void backwardStraightMovementSubtractsDistanceAlongHeading() {
+        final var steeringPilot = newPilot();
+        final var listener = new RecordingListener();
+        steeringPilot.addMovementListener(listener);
+
+        steeringPilot.move(SteeringPilot.Direction.STRAIGHT, SteeringPilot.Bearing.FORWARD);
+        steeringPilot.move(SteeringPilot.Direction.STRAIGHT, SteeringPilot.Bearing.BACKWARD);
+
+        final var pose = listener.pose();
+        assertEquals(0.0, pose.getX(), DELTA);
+        assertEquals(0.0, pose.getY(), DELTA);
+        assertEquals(0.0, pose.getOrientation(), DELTA);
+    }
+
+    @Test
+    public void backwardTurnAppliesTheOppositeHeadingChangeOfTheEquivalentForwardTurn() {
+        final var forwardPilot = newPilot();
+        final var forwardListener = new RecordingListener();
+        forwardPilot.addMovementListener(forwardListener);
+        forwardPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
+
+        final var backwardPilot = newPilot();
+        final var backwardListener = new RecordingListener();
+        backwardPilot.addMovementListener(backwardListener);
+        backwardPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.BACKWARD);
+
+        final var forwardPose = forwardListener.pose();
+        final var backwardPose = backwardListener.pose();
+
+        // Percorrendo la distanza in verso opposto, dTheta cambia segno: x e heading si
+        // invertono, mentre y (funzione pari di dTheta rispetto all'ICC comune) resta invariata.
+        assertEquals(forwardPose.getX(), -backwardPose.getX(), DELTA);
+        assertEquals(forwardPose.getY(), backwardPose.getY(), DELTA);
+        assertEquals(forwardPose.getOrientation(), -backwardPose.getOrientation(), DELTA);
+    }
+
+    @Test
     public void singleTurnMatchesClosedFormUsingTheCalibratedRadius() {
         final var steeringPilot = newPilot();
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
 
-        steeringPilot.move(SteeringPilot.Direction.RIGHT);
+        steeringPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
 
         final var expectedR = TURN_RADIUS;
         final var expectedDTheta = STEP_DISTANCE / expectedR;
@@ -80,12 +121,12 @@ public class PositionTest {
         final var rightPilot = newPilot();
         final var rightListener = new RecordingListener();
         rightPilot.addMovementListener(rightListener);
-        rightPilot.move(SteeringPilot.Direction.RIGHT);
+        rightPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
 
         final var leftPilot = newPilot();
         final var leftListener = new RecordingListener();
         leftPilot.addMovementListener(leftListener);
-        leftPilot.move(SteeringPilot.Direction.LEFT);
+        leftPilot.move(SteeringPilot.Direction.LEFT, SteeringPilot.Bearing.FORWARD);
 
         final var rightPose = rightListener.pose();
         final var leftPose = leftListener.pose();
@@ -103,8 +144,8 @@ public class PositionTest {
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
 
-        steeringPilot.move(SteeringPilot.Direction.RIGHT);
-        steeringPilot.move(SteeringPilot.Direction.LEFT);
+        steeringPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
+        steeringPilot.move(SteeringPilot.Direction.LEFT, SteeringPilot.Bearing.FORWARD);
 
         assertEquals(0.0, listener.pose().getOrientation(), DELTA);
     }
@@ -121,7 +162,7 @@ public class PositionTest {
         final var iccY = TURN_RADIUS;
 
         for (int i = 0; i < 8; i++) {
-            steeringPilot.move(SteeringPilot.Direction.RIGHT);
+            steeringPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
             final var pose = listener.pose();
             final var distanceFromIcc = Math.hypot(pose.getX() - iccX, pose.getY() - iccY);
             assertEquals(TURN_RADIUS, distanceFromIcc, DELTA,
@@ -139,7 +180,7 @@ public class PositionTest {
         final var listener = new RecordingListener();
         steeringPilot.addMovementListener(listener);
 
-        steeringPilot.move(SteeringPilot.Direction.RIGHT);
+        steeringPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
 
         final var dTheta = listener.pose().getOrientation();
         final var effectiveRadius = Math.abs(STEP_DISTANCE / dTheta);
@@ -158,7 +199,7 @@ public class PositionTest {
         final var turnsForFullCircle = (int) Math.round((2 * Math.PI) / dThetaPerTurn);
 
         for (int i = 0; i < turnsForFullCircle; i++) {
-            steeringPilot.move(SteeringPilot.Direction.RIGHT);
+            steeringPilot.move(SteeringPilot.Direction.RIGHT, SteeringPilot.Bearing.FORWARD);
         }
 
         final var pose = listener.pose();

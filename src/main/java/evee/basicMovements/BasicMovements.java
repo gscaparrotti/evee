@@ -3,18 +3,12 @@ package evee.basicMovements;
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
 import evee.custom.SteeringPilot;
+import evee.custom.SteeringPilot.Bearing;
 import evee.custom.SteeringPilot.Direction;
-import evee.custom.SteeringPilot.Movement;
-import evee.custom.SteeringPilot.MovementListener;
 import lejos.hardware.port.MotorPort;
 import lejos.robotics.RegulatedMotor;
 import lejos.robotics.subsumption.Behavior;
 import lombok.Getter;
-import lombok.SneakyThrows;
-import org.apache.commons.io.FileUtils;
-
-import java.io.File;
-import java.time.LocalDateTime;
 
 import static evee.utils.Utils.*;
 
@@ -24,20 +18,19 @@ public class BasicMovements implements Behavior {
 
     public static final int TURN_MOTOR_SPEED = 400;
     public static final int STRAIGHT_MOTOR_SPEED = 500;
-    public static final double TURN_RADIUS = 155.0;
+    public static final double TURN_RADIUS = 170.0;
+    public static final double WHEEL_DIAMETER = 43.2;
 
     volatile boolean started = false;
 
-    private RegulatedMotor motorRight;
-    private RegulatedMotor turn;
+    private RegulatedMotor driveMotor;
+    private RegulatedMotor steerMotor;
 
     private SteeringPilot steeringPilot;
-    private MovementListener movementListener;
+    private BasicMovementListener movementListener;
 
-    @SneakyThrows
     public BasicMovements() {
         this.createMotorsAndSensors();
-        FileUtils.write(new File("output.txt"), LocalDateTime.now() + "\n", true);
     }
 
     @Override
@@ -57,10 +50,9 @@ public class BasicMovements implements Behavior {
 
     private void createMotorsAndSensors() {
         LOGGER.debug("Creating Motors");
-        this.motorRight = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
-        this.turn = new EV3MediumRegulatedMotor(MotorPort.C);
-        LOGGER.debug("Configuring motors");
-        this.steeringPilot = new SteeringPilot(motorRight, turn, 42.0, 155.0);
+        this.driveMotor = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
+        this.steerMotor = new EV3MediumRegulatedMotor(MotorPort.C);
+        this.steeringPilot = new SteeringPilot(driveMotor, steerMotor, WHEEL_DIAMETER, TURN_RADIUS);
         this.steeringPilot.calibrateSteering();
         this.movementListener = new BasicMovementListener();
         this.steeringPilot.addMovementListener(this.movementListener);
@@ -87,24 +79,7 @@ public class BasicMovements implements Behavior {
         } else {
             direction = Direction.STRAIGHT;
         }
-        this.steeringPilot.move(direction);
-    }
-
-    private static class BasicMovementListener implements MovementListener {
-
-        private Movement previousMovement;
-
-        @Override
-        public Movement getPreviousMovement() {
-            return this.previousMovement;
-        }
-
-        @SneakyThrows
-        @Override
-        public void movementEnded(Movement movement) {
-            this.previousMovement = movement;
-            final var pose = movement.getOrientedPosition();
-            FileUtils.write(new File("output.txt"), System.currentTimeMillis() + "," + pose.getX() + "," + pose.getY() + "\n", true);
-        }
+        final var bearing = distance < 0 ? Bearing.BACKWARD : Bearing.FORWARD;
+        this.steeringPilot.move(direction, bearing);
     }
 }

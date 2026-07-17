@@ -4,6 +4,7 @@ import ev3dev.sensors.ev3.EV3IRSensor;
 import ev3dev.sensors.ev3.EV3TouchSensor;
 import evee.basicMovements.BasicMovements;
 import evee.custom.MotorUtils;
+import evee.utils.Notifications;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.SensorMode;
 import lejos.robotics.subsumption.Behavior;
@@ -66,6 +67,9 @@ public class ObstaclesAvoider implements Behavior {
 
     public void handleObstacles() {
         beep(SINGLE_MEDIUM_BEEP);
+        if (this.obstaclesDetected[0] || this.obstaclesDetected[1]) {
+            basicMovements.getMovementListener().markObstacleFound();
+        }
         obstacles.add(System.currentTimeMillis());
         if (obstacles.isAtFullCapacity()) {
             final var oldest = obstacles.poll();
@@ -103,21 +107,34 @@ public class ObstaclesAvoider implements Behavior {
     }
 
     private void moveAroundObstacle(final boolean invertedDirection) {
-        basicMovements.travel(0, -200);
-        basicMovements.setSpeedForBothMotors(TURN_MOTOR_SPEED);
-        LOGGER.debug("Rotation started");
-        LOGGER.debug("First part of rotation");
-        final var direction = RANDOM.nextInt(100) > 20;
-        var angle = direction ? 20 : -20;
-        if (invertedDirection) {
-            angle = -angle;
+        try {
+            basicMovements.travel(0, -200);
+            basicMovements.setSpeedForBothMotors(TURN_MOTOR_SPEED);
+            LOGGER.debug("Rotation started");
+            LOGGER.debug("First part of rotation");
+            final var direction = RANDOM.nextInt(100) > 20;
+            var angle = direction ? 20 : -20;
+            if (invertedDirection) {
+                angle = -angle;
+            }
+            basicMovements.travel(angle);
+            this.sleepingThread = Thread.currentThread();
+            Thread.sleep(1000);
+        } catch (InterruptedException ignored) {
+            LOGGER.debug("Rotation interrupted");
+            Notifications.beep(SINGLE_VERY_HIGH_BEEP);
+        } finally {
+            this.sleepingThread = null;
+            LOGGER.debug("Second part of rotation");
+            //basicMovements.travel(0);
+            LOGGER.debug("Rotation completed");
+            basicMovements.setSpeedForBothMotors(STRAIGHT_MOTOR_SPEED);
         }
-        basicMovements.travel(angle);
     }
 
     private boolean isTouch() {
         touchMode.fetchSample(touchSample, 0);
-        final var isOverloaded = MotorUtils.isOverloaded(basicMovements.getMotorRight());
+        final var isOverloaded = MotorUtils.isOverloaded(basicMovements.getDriveMotor());
         if (isOverloaded) {
             beep(SINGLE_HIGH_BEEP);
         }

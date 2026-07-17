@@ -20,12 +20,13 @@ import java.util.List;
  * positions, resets the encoder so 0 is the center/straight position, and stores the two
  * limits in {@link #minLeft} and {@link #minRight}.
  *
- * <p>Each call to {@link #move(Direction)} first steers into position via
+ * <p>Each call to {@link #move(Direction, Bearing)} first steers into position via
  * {@link #steer(Direction)} (rotating {@link #steerMotor} to {@link #minLeft},
- * {@link #minRight} or 0), then drives {@link #driveMotor} through one full rotation —
- * i.e. every move covers the same ground distance, one wheel circumference
- * ({@link #wheelDiameter} &times; &pi;). It then hands off to {@link #logMovement} to
- * update the tracked pose and notify listeners.
+ * {@link #minRight} or 0), then drives {@link #driveMotor} through one full rotation,
+ * forward or backward depending on {@link Bearing} — i.e. every move covers the same
+ * ground distance, one wheel circumference ({@link #wheelDiameter} &times; &pi;), just
+ * signed by {@link Bearing}. It then hands off to {@link #logMovement} to update the
+ * tracked pose and notify listeners.
  *
  * <p>{@link #logMovement} maintains the robot's pose relative to where it started moving
  * in the fields {@link #x}, {@link #y} and {@link #heading} (all implicitly zero at
@@ -58,15 +59,15 @@ public class SteeringPilot {
         movementListeners.add(listener);
     }
 
-    public void move(final Direction direction) {
+    public void move(final Direction direction, final Bearing bearing) {
         final var startTimestamp = System.nanoTime();
         if (steerMotor != null && driveMotor != null) {
             steer(direction);
-            driveMotor.rotate(360);
+            driveMotor.rotate(bearing == Bearing.FORWARD ? 360 : -360);
         }
         final var endTimestamp = System.nanoTime();
         final var elapsedTime = endTimestamp - startTimestamp;
-        this.logMovement(direction, elapsedTime);
+        this.logMovement(direction, bearing, elapsedTime);
     }
 
     private void steer(final Direction direction) {
@@ -89,23 +90,26 @@ public class SteeringPilot {
      * to every {@link MovementListener}.
      *
      * <p>The distance travelled is always one wheel circumference ({@link #wheelDiameter}
-     * &times; &pi;), since {@link #move(Direction)} always drives {@link #driveMotor}
-     * through exactly one rotation. For {@link Direction#STRAIGHT} that distance is simply
-     * projected along the current {@link #heading}. For {@link Direction#LEFT}/{@link
-     * Direction#RIGHT}, the vehicle only ever steers to the fixed, calibrated
-     * {@link #turnRadius}, so the signed curvature radius {@code R} is {@code turnRadius}
-     * with the sign of {@link Direction#steeringAngle}; the heading change {@code dTheta}
-     * is the distance divided by {@code R}, and the new pose is obtained by rotating the
-     * old one by {@code dTheta} around the instantaneous center of curvature (ICC).
+     * &times; &pi;), signed by {@link Bearing}, since {@link #move(Direction, Bearing)}
+     * always drives {@link #driveMotor} through exactly one rotation, forward or backward.
+     * For {@link Direction#STRAIGHT} that (signed) distance is simply projected along the
+     * current {@link #heading}. For {@link Direction#LEFT}/{@link Direction#RIGHT}, the
+     * vehicle only ever steers to the fixed, calibrated {@link #turnRadius}, so the signed
+     * curvature radius {@code R} is {@code turnRadius} with the sign of {@link
+     * Direction#steeringAngle}; the heading change {@code dTheta} is the signed distance
+     * divided by {@code R}, and the new pose is obtained by rotating the old one by
+     * {@code dTheta} around the instantaneous center of curvature (ICC).
      *
      * @param direction   the steering direction used for this move
+     * @param bearing     whether {@link #driveMotor} was driven forward or backward for this
+     *                    move; the travelled distance is negated for {@link Bearing#BACKWARD}
+     *                    so the ICC construction below still yields the correct pose
      * @param elapsedTime how long the move took, in nanoseconds, recorded on the resulting
      *                    {@link Movement} but not used in the pose calculation
      */
-    @SuppressWarnings({"IfStatementWithIdenticalBranches", "DuplicateExpressions"})
-    private void logMovement(final Direction direction, final long elapsedTime) {
+    private void logMovement(final Direction direction, final Bearing bearing, final long elapsedTime) {
 
-        final var distance = (wheelDiameter / 2) * Math.PI * 2;
+        final var distance = (wheelDiameter / 2) * Math.PI * 2 * bearing.getSign();
 
         final double EPS = 1e-9;
 
@@ -204,11 +208,22 @@ public class SteeringPilot {
         private final double steeringAngle;
     }
 
+    /** Whether {@link #driveMotor} is driven forward or backward for a given {@link #move}. */
+    @AllArgsConstructor
+    @Getter
+    public enum Bearing {
+        FORWARD(1), BACKWARD(-1);
+        private final int sign;
+    }
+
     public interface MovementListener {
 
         Movement getPreviousMovement();
 
         void movementEnded(final Movement movement);
+
+        /** Marks the position of {@link #getPreviousMovement()} as an obstacle sighting. */
+        void markObstacleFound();
 
     }
 

@@ -16,6 +16,7 @@ public class Bluetooth implements Behavior {
 
     public Bluetooth(final BasicMovements basicMovements) {
         this.basicMovements = basicMovements;
+        BluetoothReceiver.receive(this::onCommand);
     }
 
     public void onCommand(final BluetoothCommands command, final Integer angle) {
