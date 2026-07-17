@@ -60,7 +60,7 @@ public class BasicMovements implements Behavior {
         this.motorRight = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
         this.turn = new EV3MediumRegulatedMotor(MotorPort.C);
         LOGGER.debug("Configuring motors");
-        this.steeringPilot = new SteeringPilot(motorRight, turn, 42.0, 155.0);;
+        this.steeringPilot = new SteeringPilot(motorRight, turn, 42.0, 155.0);
         this.steeringPilot.calibrateSteering();
         this.movementListener = new BasicMovementListener();
         this.steeringPilot.addMovementListener(this.movementListener);

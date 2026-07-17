@@ -1,12 +1,46 @@
 package evee.custom;
 
 import lejos.robotics.RegulatedMotor;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Pilots a car-like (Ackermann/bicycle-model) robot: one {@link #driveMotor} pushes the
+ * robot forward by a fixed amount, and one {@link #steerMotor} points the steerable wheel
+ * at one of three fixed positions ({@link Direction#STRAIGHT}, {@link Direction#LEFT} or
+ * {@link Direction#RIGHT}) rather than at an arbitrary continuous angle.
+ *
+ * <p>{@link #calibrateSteering()} must be called once before driving: it sweeps
+ * {@link #steerMotor} to its physical left/right limits to find their tacho-count
+ * positions, resets the encoder so 0 is the center/straight position, and stores the two
+ * limits in {@link #minLeft} and {@link #minRight}.
+ *
+ * <p>Each call to {@link #move(Direction)} first steers into position via
+ * {@link #steer(Direction)} (rotating {@link #steerMotor} to {@link #minLeft},
+ * {@link #minRight} or 0), then drives {@link #driveMotor} through one full rotation —
+ * i.e. every move covers the same ground distance, one wheel circumference
+ * ({@link #wheelDiameter} &times; &pi;). It then hands off to {@link #logMovement} to
+ * update the tracked pose and notify listeners.
+ *
+ * <p>{@link #logMovement} maintains the robot's pose relative to where it started moving
+ * in the fields {@link #x}, {@link #y} and {@link #heading} (all implicitly zero at
+ * construction, i.e. the origin is the robot's own starting point and pose, not any
+ * absolute/world frame). For {@link Direction#STRAIGHT} it just projects the travelled
+ * distance along the current {@link #heading}. For {@link Direction#LEFT}/{@link
+ * Direction#RIGHT} it applies the standard instantaneous-center-of-curvature (ICC)
+ * construction: since the vehicle can only steer to the fixed, calibrated
+ * {@link #turnRadius}, the signed curvature radius {@code R} is just {@code turnRadius}
+ * with the sign of {@link Direction#steeringAngle}, the heading change {@code dTheta} is
+ * the arc length divided by {@code R}, and the new (x, y, heading) is obtained by
+ * rotating the old pose by {@code dTheta} around the ICC. Once updated, the new pose is
+ * wrapped in a {@link Movement} and broadcast to every registered
+ * {@link MovementListener} (see {@link #addMovementListener}).
+ */
 @RequiredArgsConstructor
 public class SteeringPilot {
 
@@ -17,6 +51,8 @@ public class SteeringPilot {
     final List<MovementListener> movementListeners = new ArrayList<>();
 
     int minRight, minLeft;
+
+    double x, y, heading;
 
     public void addMovementListener(final MovementListener listener) {
         movementListeners.add(listener);
@@ -47,65 +83,69 @@ public class SteeringPilot {
         }
     }
 
+    /**
+     * Updates {@link #x}, {@link #y} and {@link #heading} to reflect the move just made in
+     * {@code direction}, then wraps the resulting pose in a {@link Movement} and passes it
+     * to every {@link MovementListener}.
+     *
+     * <p>The distance travelled is always one wheel circumference ({@link #wheelDiameter}
+     * &times; &pi;), since {@link #move(Direction)} always drives {@link #driveMotor}
+     * through exactly one rotation. For {@link Direction#STRAIGHT} that distance is simply
+     * projected along the current {@link #heading}. For {@link Direction#LEFT}/{@link
+     * Direction#RIGHT}, the vehicle only ever steers to the fixed, calibrated
+     * {@link #turnRadius}, so the signed curvature radius {@code R} is {@code turnRadius}
+     * with the sign of {@link Direction#steeringAngle}; the heading change {@code dTheta}
+     * is the distance divided by {@code R}, and the new pose is obtained by rotating the
+     * old one by {@code dTheta} around the instantaneous center of curvature (ICC).
+     *
+     * @param direction   the steering direction used for this move
+     * @param elapsedTime how long the move took, in nanoseconds, recorded on the resulting
+     *                    {@link Movement} but not used in the pose calculation
+     */
     @SuppressWarnings({"IfStatementWithIdenticalBranches", "DuplicateExpressions"})
     private void logMovement(final Direction direction, final long elapsedTime) {
 
-        final var length = (wheelDiameter / 2) * Math.PI * 2;
+        final var distance = (wheelDiameter / 2) * Math.PI * 2;
 
-        // Recupera posizione e orientamento precedenti
-        OrientedPosition previousOrientedPosition = null;
-        for (final var movementListener : movementListeners) {
-            final var previousMovement = movementListener.getPreviousMovement();
-            if (previousMovement != null) {
-                previousOrientedPosition = previousMovement.orientedPosition;
-            }
-        }
+        final double EPS = 1e-9;
 
-        // Posizione di partenza: origine se è il primo movimento
-        final var startX = previousOrientedPosition != null ? previousOrientedPosition.x : 0.0;
-        final var startY = previousOrientedPosition != null ? previousOrientedPosition.y : 0.0;
-        // L'orientamento è l'angolo perpendicolare salvato nel movimento precedente.
-        // Il valore iniziale (90°) indica che il robot è parallelo all'asse Y (guarda verso l'alto).
-        final var previousAngle = previousOrientedPosition != null ? previousOrientedPosition.orientation : 90.0;
-
-        final double sweepAngle;
-        if (direction != Direction.STRAIGHT) {
-            final var circle = turnRadius * 2 * Math.PI;
-            // Angolo spazzato lungo l'arco (relativo)
-            sweepAngle = 360.0 * length / circle;
+        final var steeringAngleRad = Math.toRadians(direction.steeringAngle);
+        if (Math.abs(steeringAngleRad) < EPS) {
+            // Moto rettilineo
+            x += distance * Math.cos(heading);
+            y += distance * Math.sin(heading);
         } else {
-            sweepAngle = 90.0;
+            // Raggio di curvatura: turnRadius è il raggio di sterzata calibrato (costante,
+            // essendoci un solo motore di sterzo con posizioni fisse), il segno segue la
+            // direzione della sterzata.
+            double R = Math.signum(steeringAngleRad) * turnRadius;
+
+            // Variazione di heading
+            double dTheta = distance / R;
+
+            // Centro di curvatura istantaneo (ICC)
+            double iccX = x - R * Math.sin(heading);
+            double iccY = y + R * Math.cos(heading);
+
+            // Nuove coordinate
+            x = iccX + R * Math.sin(heading + dTheta);
+            y = iccY - R * Math.cos(heading + dTheta);
+            heading = normalizeAngle(heading + dTheta);
         }
-
-        // Lo spostamento relativo viene calcolato nel sistema di riferimento locale del robot
-        // (robot orientato verso l'alto, cioè asse Y), poi ruotato dell'orientamento corrente.
-        final double localX;
-        final double localY;
-        if (direction == Direction.LEFT) {
-            localX = -(turnRadius * Math.cos(Math.toRadians(sweepAngle)));
-            localY = turnRadius * Math.sin(Math.toRadians(sweepAngle));
-        } else { // RIGHT
-            localX = turnRadius * Math.cos(Math.toRadians(sweepAngle));
-            localY = turnRadius * Math.sin(Math.toRadians(sweepAngle));
-        }
-
-        // Rotazione del vettore locale nell'orientamento assoluto del robot.
-        // startAngle è l'angolo del robot rispetto all'asse X (est = 0°, nord = 90°).
-        final var headingRad = Math.toRadians((previousAngle - 90.0) % 360.0);
-        final var deltaX = localX * Math.cos(headingRad) - localY * Math.sin(headingRad);
-        final var deltaY = localX * Math.sin(headingRad) + localY * Math.cos(headingRad);
-
-        final var newAngle = (previousAngle + (direction == Direction.LEFT ? sweepAngle : -sweepAngle)) % 360.0;
-
-        final var newX = startX + deltaX;
-        final var newY = startY + deltaY;
 
         for (final var movementListener : movementListeners) {
-            final var orientedPosition = new OrientedPosition(newX, newY, newAngle);
-            final var movement = new Movement(orientedPosition, direction, elapsedTime, length);
+            final var orientedPosition = new OrientedPosition(x, y, heading);
+            final var movement = new Movement(orientedPosition, direction, elapsedTime, distance);
             movementListener.movementEnded(movement);
         }
 
+    }
+
+    /** Normalizza un angolo nell'intervallo (-π, π]. */
+    private static double normalizeAngle(double angle) {
+        while (angle >  Math.PI) angle -= 2 * Math.PI;
+        while (angle <= -Math.PI) angle += 2 * Math.PI;
+        return angle;
     }
 
     public void calibrateSteering() {
@@ -157,8 +197,11 @@ public class SteeringPilot {
         double orientation;
     }
 
+    @AllArgsConstructor
+    @Getter
     public enum Direction {
-        STRAIGHT, LEFT, RIGHT
+        STRAIGHT(0.0), LEFT(-30.0), RIGHT(30.0);
+        private final double steeringAngle;
     }
 
     public interface MovementListener {
