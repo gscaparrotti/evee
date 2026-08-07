@@ -2,11 +2,12 @@ package evee.basicMovements;
 
 import ev3dev.actuators.lego.motors.EV3MediumRegulatedMotor;
 import evee.custom.BackwardsEV3LargeRegulatedMotor;
+import evee.custom.EveeMotor;
+import evee.custom.EveeMotorAdapter;
 import evee.custom.SteeringPilot;
 import evee.custom.SteeringPilot.Bearing;
 import evee.custom.SteeringPilot.Direction;
 import lejos.hardware.port.MotorPort;
-import lejos.robotics.RegulatedMotor;
 import lejos.robotics.subsumption.Behavior;
 import lombok.Getter;
 
@@ -21,8 +22,8 @@ public class BasicMovements implements Behavior {
 
     volatile boolean started = false;
 
-    private RegulatedMotor driveMotor;
-    private RegulatedMotor steerMotor;
+    private EveeMotor driveMotor;
+    private EveeMotor steerMotor;
 
     private SteeringPilot steeringPilot;
     private BasicMovementListener movementListener;
@@ -49,7 +50,7 @@ public class BasicMovements implements Behavior {
     private void createMotorsAndSensors() {
         LOGGER.debug("Creating Motors");
         this.driveMotor = new BackwardsEV3LargeRegulatedMotor(MotorPort.D);
-        this.steerMotor = new EV3MediumRegulatedMotor(MotorPort.C);
+        this.steerMotor = new EveeMotorAdapter(new EV3MediumRegulatedMotor(MotorPort.C));
         this.steeringPilot = new SteeringPilot(driveMotor, steerMotor, WHEEL_DIAMETER, TURN_RADIUS);
         this.steeringPilot.calibrateSteering();
         this.movementListener = new BasicMovementListener();

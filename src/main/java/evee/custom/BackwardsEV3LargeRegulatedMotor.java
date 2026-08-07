@@ -5,7 +5,7 @@ import lejos.hardware.port.Port;
 
 import java.util.Objects;
 
-public class BackwardsEV3LargeRegulatedMotor extends EV3LargeRegulatedMotor {
+public class BackwardsEV3LargeRegulatedMotor extends EV3LargeRegulatedMotor implements OverloadableMotor, EveeMotor {
 
     private final String motorPort;
 
@@ -40,6 +40,7 @@ public class BackwardsEV3LargeRegulatedMotor extends EV3LargeRegulatedMotor {
         super.rotate(-angle, immediateReturn);
     }
 
+    @Override
     public boolean isOverloaded() {
         return (this.getStringAttribute(STATE).contains("overloaded"));
     }

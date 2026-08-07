@@ -1,6 +1,5 @@
 package evee.custom;
 
-import lejos.robotics.RegulatedMotor;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -45,8 +44,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SteeringPilot {
 
-    final RegulatedMotor driveMotor;
-    final RegulatedMotor steerMotor;
+    final EveeMotor driveMotor;
+    final EveeMotor steerMotor;
     final double wheelDiameter;
     final double turnRadius;
     final List<MovementListener> movementListeners = new ArrayList<>();
